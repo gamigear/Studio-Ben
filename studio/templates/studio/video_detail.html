@@ -2,23 +2,22 @@
 {% load tz %}
 {% block title %}{{ video.title }}{% endblock %}
 {% block content %}
-<h1>{{ video.title }}</h1>
-<p class="muted">{{ video.channel.name }} · {{ video.get_source_display }} {% include "studio/_video_state.html" with v=video %}</p>
+<div class="page-head"><div><h1>{{ video.title }}</h1><div class="sub muted">{{ video.channel.name }} · {{ video.get_source_display }} {% include "studio/_video_state.html" with v=video %}</div></div></div>
 {% if video.file_error %}<div class="messages"><li class="error">Tải file: {{ video.file_error }}</li></div>{% endif %}
 {% if video.caption_error %}<div class="messages"><li class="error">AI: {{ video.caption_error }}</li></div>{% endif %}
 
-<div class="row" style="align-items:flex-start; gap:16px">
-  <div style="flex:1; min-width:260px; max-width:380px">
+<div class="split">
+  <div class="side">
     {% if video.file %}
       <video class="video-thumb" controls playsinline preload="metadata" src="{% url 'studio:video_file' video.pk %}"></video>
-      <p><a class="btn small" href="{% url 'studio:video_file' video.pk %}?tai=1">Tải video</a></p>
-    {% else %}<div class="card muted">Chưa có file trên máy chủ.</div>{% endif %}
+      <p><a class="btn small" href="{% url 'studio:video_file' video.pk %}?tai=1">{% include "studio/_icon.html" with name="download" %}Tải video</a></p>
+    {% else %}<div class="empty">Chưa có file trên máy chủ.</div>{% endif %}
   </div>
-  <div class="card" style="flex:2; min-width:280px">
+  <div class="main">
     <form method="post">{% csrf_token %}{% include "studio/_form.html" %}
       <div class="row"><button class="btn primary">Lưu</button></div>
     </form>
-    <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+    <hr class="sep">
     <div class="row">
       <form method="post" action="{% url 'studio:video_regenerate' video.pk %}" class="inline">{% csrf_token %}<button class="btn">AI viết lại caption</button></form>
       {% if video.file_status == 'failed' or video.caption_status == 'failed' %}
@@ -32,11 +31,11 @@
 {% if posts %}
 <h2>Lịch đăng của video</h2>
 <div class="table-wrap"><table>
-  <tr><th>Giờ</th><th>Nhân viên</th><th>Trạng thái</th><th></th></tr>
+  <thead><tr><th>Giờ</th><th>Nhân viên</th><th>Trạng thái</th><th></th></tr></thead><tbody>
   {% for p in posts %}
-  <tr><td>{{ p.scheduled_at|localtime|date:"d/m H:i" }}</td><td>{{ p.assignee|default:"—" }}</td><td>{{ p.get_status_display }}</td>
+  <tr><td>{{ p.scheduled_at|localtime|date:"d/m H:i" }}</td><td>{{ p.assignee|default:"—" }}</td><td><span class="badge {{ p.status_class }}">{{ p.status_label }}</span></td>
     <td><a href="{% url 'studio:post_edit' p.pk %}">Sửa</a></td></tr>
   {% endfor %}
-</table></div>
+</tbody></table></div>
 {% endif %}
 {% endblock %}

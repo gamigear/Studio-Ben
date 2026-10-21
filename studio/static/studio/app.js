@@ -93,6 +93,17 @@
       });
   }
 
+  // Thanh menu trái: mở/đóng trên điện thoại, thu gọn trên máy tính.
+  document.addEventListener("click", function (ev) {
+    var root = document.documentElement;
+    if (ev.target.closest("[data-open-sidebar]")) root.classList.add("sb-open");
+    if (ev.target.closest("[data-close-sidebar]")) root.classList.remove("sb-open");
+    if (ev.target.closest("[data-toggle-collapse]")) {
+      var collapsed = root.classList.toggle("sb-collapsed");
+      try { localStorage.setItem("sbCollapsed", collapsed ? "1" : "0"); } catch (e) {}
+    }
+  });
+
   // Xác nhận cho các nút có data-confirm.
   document.addEventListener("submit", function (ev) {
     var msg = ev.target.getAttribute("data-confirm");

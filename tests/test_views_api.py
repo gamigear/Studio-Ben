@@ -258,3 +258,26 @@ def test_bad_query_params_do_not_crash(client, manager, post):
     assert client.get(reverse("studio:my_tasks") + "?nv=abc&ngay=xx").status_code == 200
     assert client.get(reverse("studio:videos") + "?kenh=abc&trang-thai=khong-co").status_code == 200
     assert client.get(reverse("studio:schedule") + "?kenh=abc").status_code == 200
+
+
+def test_calendar_views(client, manager, post, staff):
+    client.force_login(manager)
+    day = timezone.localtime(post.scheduled_at).date().isoformat()
+    for view in ["ngay", "tuan", "thang"]:
+        resp = client.get(reverse("studio:schedule") + f"?xem={view}&ngay={day}&kenh={post.channel_id}&nv={staff.pk}")
+        assert resp.status_code == 200, view
+        assert post in resp.context["posts"]
+    week = client.get(reverse("studio:schedule") + f"?xem=tuan&ngay={day}").context
+    assert len(week["days"]) == 7 and week["days"][0]["date"].weekday() == 0
+    month = client.get(reverse("studio:schedule") + f"?xem=thang&ngay={day}").context
+    assert len(month["days"]) % 7 == 0 and all(len(w) == 7 for w in month["weeks"])
+    assert client.get(reverse("studio:schedule") + f"?nv={manager.pk}").context["posts"] == []
+
+
+def test_sidebar_counts_pending(client, staff, post):
+    client.force_login(staff)
+    resp = client.get(reverse("studio:my_tasks"))
+    channels = list(resp.context["sidebar_channels"])
+    assert channels[0].pending_today == 1
+    assert resp.context["my_pending_count"]() == 1
+    assert client.get(reverse("studio:my_tasks") + f"?kenh={post.channel_id}").context["posts"] == [post]

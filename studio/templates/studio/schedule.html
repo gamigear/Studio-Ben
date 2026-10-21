@@ -2,44 +2,74 @@
 {% load tz %}
 {% block title %}Lịch đăng{% endblock %}
 {% block content %}
-<div class="row spread">
-  <h1>Lịch đăng · {{ day|date:"l d/m/Y" }}</h1>
-  <div class="row">
-    <a class="btn small" href="?ngay={{ prev_day|date:'Y-m-d' }}{% if channel_id %}&kenh={{ channel_id }}{% endif %}">‹</a>
-    <form method="get" class="row">
-      <input type="date" name="ngay" value="{{ day|date:'Y-m-d' }}" onchange="this.form.submit()">
-      <select name="kenh" onchange="this.form.submit()">
-        <option value="">Tất cả kênh</option>
-        {% for c in channels %}<option value="{{ c.pk }}" {% if c.pk|stringformat:'s' == channel_id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
-      </select>
-    </form>
-    <a class="btn small" href="?ngay={{ next_day|date:'Y-m-d' }}{% if channel_id %}&kenh={{ channel_id }}{% endif %}">›</a>
-    <form method="post" action="{% url 'studio:schedule_now' %}" class="inline">{% csrf_token %}
-      <input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn small primary">Xếp lịch ngay</button></form>
-  </div>
+<div class="page-head">
+  <div><h1>Lịch đăng</h1><div class="sub muted small">Worker tự xếp video sẵn sàng vào các khung giờ trống của mỗi kênh. Bấm vào một bài để sửa.</div></div>
+  <form method="post" action="{% url 'studio:schedule_now' %}" class="inline">{% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn primary">{% include "studio/_icon.html" with name="refresh" %}Xếp lịch ngay</button></form>
 </div>
-<p class="muted small">Worker tự xếp video sẵn sàng vào các khung giờ còn trống của mỗi kênh (vài ngày tới). Gỡ một bài thì video quay lại kho.</p>
+
+<div class="cal-toolbar">
+  <a class="btn small" href="?xem={{ view }}&ngay={{ prev_anchor|date:'Y-m-d' }}{{ filters }}" aria-label="Trước">{% include "studio/_icon.html" with name="left" %}</a>
+  <a class="btn small" href="?xem={{ view }}&ngay={{ next_anchor|date:'Y-m-d' }}{{ filters }}" aria-label="Sau">{% include "studio/_icon.html" with name="right" %}</a>
+  <span class="cal-title">{{ title }}</span>
+  <a class="btn small" href="?xem={{ view }}{{ filters }}">Hôm nay</a>
+  <div class="segmented">
+    {% for key, label in views.items %}<a href="?xem={{ key }}&ngay={{ anchor|date:'Y-m-d' }}{{ filters }}" class="{% if key == view %}active{% endif %}">{{ label }}</a>{% endfor %}
+  </div>
+  <span class="grow"></span>
+  <form method="get" class="row">
+    <input type="hidden" name="xem" value="{{ view }}"><input type="hidden" name="ngay" value="{{ anchor|date:'Y-m-d' }}">
+    <select name="kenh" class="compact" onchange="this.form.submit()">
+      <option value="">Tất cả kênh</option>
+      {% for c in channels %}<option value="{{ c.pk }}" {% if c.pk|stringformat:'s' == channel_id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+    </select>
+    <select name="nv" class="compact" onchange="this.form.submit()">
+      <option value="">Tất cả nhân viên</option>
+      {% for s in staff_choices %}<option value="{{ s.pk }}" {% if s.pk|stringformat:'s' == staff_id %}selected{% endif %}>{{ s }}</option>{% endfor %}
+    </select>
+  </form>
+</div>
+
+{% if view == "ngay" %}
 <div class="table-wrap"><table>
-  <tr><th>Giờ</th><th>Kênh</th><th>Video</th><th>Nhân viên</th><th>Trạng thái</th><th></th></tr>
+  <thead><tr><th>Giờ</th><th>Kênh</th><th>Video</th><th>Nhân viên</th><th>Trạng thái</th><th></th></tr></thead>
+  <tbody>
   {% for p in posts %}
   <tr>
     <td><b>{{ p.scheduled_at|localtime|time:"H:i" }}</b></td>
     <td>{{ p.channel.name }}</td>
     <td><a href="{% url 'studio:video_detail' p.video_id %}">{{ p.video.title|truncatechars:50 }}</a></td>
     <td>{{ p.assignee|default:"—" }}</td>
-    <td>
-      {% if p.status == 'posted' %}<span class="badge ok">Đã đăng</span>{% if p.post_url %} <a href="{{ p.post_url }}" target="_blank" rel="noopener">link</a>{% endif %}
-      {% elif p.status == 'skipped' %}<span class="badge">Bỏ qua</span>
-      {% elif p.is_overdue %}<span class="badge bad">Trễ</span>
-      {% else %}<span class="badge warn">Chờ đăng</span>{% endif %}
-    </td>
+    <td><span class="badge {{ p.status_class }}">{{ p.status_label }}</span>{% if p.post_url %} <a href="{{ p.post_url }}" target="_blank" rel="noopener" class="small">link</a>{% endif %}</td>
     <td class="row">
       <a class="btn small" href="{% url 'studio:post_edit' p.pk %}">Sửa</a>
       {% if p.status == 'pending' %}
-      <form method="post" action="{% url 'studio:post_unschedule' p.pk %}" class="inline" data-confirm="Gỡ bài này khỏi lịch?">{% csrf_token %}<button class="btn small danger">Gỡ</button></form>
+      <form method="post" action="{% url 'studio:post_unschedule' p.pk %}" class="inline" data-confirm="Gỡ bài này khỏi lịch? Video sẽ quay lại kho.">{% csrf_token %}<button class="btn small danger">Gỡ</button></form>
       {% endif %}
     </td>
   </tr>
   {% empty %}<tr><td colspan="6" class="muted">Không có bài nào trong ngày này.</td></tr>{% endfor %}
+  </tbody>
 </table></div>
+{% else %}
+<div class="cal {% if view == 'thang' %}month{% else %}week{% endif %}">
+  <div class="cal-head">{% for d in weekday_labels %}<div>{{ d }}</div>{% endfor %}</div>
+  {% for week in weeks %}
+  <div class="cal-week">
+    {% for d in week %}
+    <div class="cal-day{% if not d.in_month %} out{% endif %}{% if d.is_today %} today{% endif %}{% if d.posts %} has-posts{% endif %}">
+      <a class="cal-num" href="?xem=ngay&ngay={{ d.date|date:'Y-m-d' }}{{ filters }}" title="Xem ngày {{ d.date|date:'d/m' }}">{{ d.date|date:"j" }}</a><span class="cal-mobile-label">{{ d.date|date:"l" }}</span>
+      {% if view == "thang" %}
+        {% for p in d.posts|slice:":4" %}{% include "studio/_chip.html" %}{% endfor %}
+        {% if d.posts|length > 4 %}<a class="more" href="?xem=ngay&ngay={{ d.date|date:'Y-m-d' }}{{ filters }}">+{{ d.posts|length|add:"-4" }} bài nữa</a>{% endif %}
+      {% else %}
+        {% for p in d.posts %}{% include "studio/_chip.html" with show_detail=True %}{% endfor %}
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% include "studio/_legend.html" %}
 {% endblock %}

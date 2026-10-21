@@ -278,6 +278,21 @@ class Post(models.Model):
     def is_due(self) -> bool:
         return self.status == self.Status.PENDING and self.scheduled_at <= timezone.now()
 
+    @property
+    def status_class(self) -> str:
+        """Lớp CSS màu trạng thái: st-posted / st-skipped / st-late / st-due / st-pending."""
+        if self.status == self.Status.POSTED:
+            return "st-posted"
+        if self.status == self.Status.SKIPPED:
+            return "st-skipped"
+        if self.is_overdue:
+            return "st-late"
+        return "st-due" if self.is_due else "st-pending"
+
+    @property
+    def status_label(self) -> str:
+        return {"st-late": "Trễ", "st-due": "Đến giờ"}.get(self.status_class, self.get_status_display())
+
     def can_handle(self, user) -> bool:
         return user.is_manager or self.assignee_id == user.id
 

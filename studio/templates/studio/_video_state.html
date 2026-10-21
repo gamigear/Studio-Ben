@@ -1,12 +1,12 @@
 {% if v.is_archived %}<span class="badge">Đã lưu trữ</span>
-{% elif v.file_status == 'failed' %}<span class="badge bad">Tải file lỗi</span>
-{% elif v.caption_status == 'failed' %}<span class="badge bad">AI lỗi</span>
+{% elif v.file_status == 'failed' %}<span class="badge st-late">Tải file lỗi</span>
+{% elif v.caption_status == 'failed' %}<span class="badge st-late">AI lỗi</span>
 {% elif v.file_status == 'pending' %}<span class="badge">Đang tải từ Drive</span>
 {% elif v.caption_status == 'pending' %}<span class="badge">Chờ AI viết</span>
 {% else %}
   {% with posts=v.posts.all %}
     {% if posts %}{% for p in posts %}
-      {% if p.status == 'posted' %}<span class="badge ok">Đã đăng</span>{% elif p.status == 'skipped' %}<span class="badge">Bỏ qua</span>{% else %}<span class="badge warn">Đã xếp lịch</span>{% endif %}
-    {% endfor %}{% else %}<span class="badge ok">Sẵn sàng</span>{% endif %}
+      {% if p.status == 'posted' %}<span class="badge st-posted">Đã đăng</span>{% elif p.status == 'skipped' %}<span class="badge">Bỏ qua</span>{% else %}<span class="badge st-pending">Đã xếp lịch</span>{% endif %}
+    {% endfor %}{% else %}<span class="badge brand">Sẵn sàng</span>{% endif %}
   {% endwith %}
 {% endif %}

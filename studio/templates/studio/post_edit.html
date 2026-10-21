@@ -1,11 +1,10 @@
 {% extends "studio/base.html" %}
 {% block title %}Sửa bài đăng{% endblock %}
 {% block content %}
-<h1>Sửa bài · {{ post.channel.name }}</h1>
-<div class="card">
-  <p><a href="{% url 'studio:video_detail' post.video_id %}">{{ post.video.title }}</a></p>
-  <form method="post">{% csrf_token %}{% include "studio/_form.html" %}
-    <div class="row"><button class="btn primary">Lưu</button><a class="btn" href="{% url 'studio:schedule' %}">Quay lại</a></div>
-  </form>
+<div class="page-head">
+  <div><h1>Sửa bài · {{ post.channel.name }}</h1><div class="sub"><span class="badge {{ post.status_class }}">{{ post.status_label }}</span> <a href="{% url 'studio:video_detail' post.video_id %}">{{ post.video.title }}</a></div></div>
 </div>
+<form method="post" class="form-narrow">{% csrf_token %}{% include "studio/_form.html" %}
+  <div class="row"><button class="btn primary">Lưu</button><a class="btn" href="{% url 'studio:schedule' %}">Quay lại lịch</a></div>
+</form>
 {% endblock %}

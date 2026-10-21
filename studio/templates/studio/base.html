@@ -3,40 +3,72 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0f766e">
+  <meta name="theme-color" content="#f97316">
   <title>{% block title %}Lên Lịch{% endblock %} · Lên Lịch</title>
   <link rel="stylesheet" href="{% static 'studio/app.css' %}">
+  <script>
+    // Áp dụng trạng thái thu gọn menu trước khi vẽ trang để không bị nháy.
+    try { if (localStorage.getItem("sbCollapsed") === "1") document.documentElement.classList.add("sb-collapsed"); } catch (e) {}
+  </script>
 </head>
 <body>
 {% if user.is_authenticated %}
-<header class="topbar">
-  <div class="topbar-inner">
-    <a class="logo" href="{% url 'studio:home' %}">Lên Lịch</a>
-    {% with u=request.resolver_match.url_name %}
-    <nav class="nav">
-      <a href="{% url 'studio:my_tasks' %}" class="{% if u == 'my_tasks' %}active{% endif %}">Việc của tôi</a>
-      {% if user.is_manager %}
-      <a href="{% url 'studio:dashboard' %}" class="{% if u == 'dashboard' %}active{% endif %}">Tổng quan</a>
-      <a href="{% url 'studio:schedule' %}" class="{% if u == 'schedule' or u == 'post_edit' %}active{% endif %}">Lịch đăng</a>
-      <a href="{% url 'studio:videos' %}" class="{% if u == 'videos' or u == 'video_detail' or u == 'video_upload' %}active{% endif %}">Kho video</a>
-      <a href="{% url 'studio:channels' %}" class="{% if u == 'channels' or u == 'channel_add' or u == 'channel_edit' %}active{% endif %}">Kênh</a>
-      <a href="{% url 'studio:settings' %}" class="{% if u == 'settings' or u == 'provider_add' or u == 'provider_edit' %}active{% endif %}">Cài đặt</a>
-      {% endif %}
-    </nav>
-    {% endwith %}
-    <div class="user small">
-      <span class="muted hide-sm">{{ user }}</span>
-      <form method="post" action="{% url 'studio:logout' %}" class="inline">{% csrf_token %}<button class="btn small">Đăng xuất</button></form>
-    </div>
-  </div>
-</header>
-{% endif %}
-<main>
-  {% if messages %}
-  <ul class="messages">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>
+{% with u=request.resolver_match.url_name %}
+<aside class="sidebar" id="sidebar">
+  <a class="brand" href="{% url 'studio:home' %}"><span class="brand-mark">L</span><span class="brand-name">Lên Lịch</span></a>
+  {% if user.is_manager %}
+  <a class="btn primary new-btn" href="{% url 'studio:video_upload' %}" title="Thêm video">{% include "studio/_icon.html" with name="plus" %}<span class="label">Thêm video</span></a>
   {% endif %}
-  {% block content %}{% endblock %}
-</main>
+
+  <a class="nav-item{% if u == 'my_tasks' and not request.GET.kenh %} active{% endif %}" href="{% url 'studio:my_tasks' %}" title="Việc của tôi">
+    {% include "studio/_icon.html" with name="tasks" %}<span class="label">Việc của tôi</span>
+    {% with n=my_pending_count %}{% if n %}<span class="count hot">{{ n }}</span>{% endif %}{% endwith %}
+  </a>
+  {% if user.is_manager %}
+  <a class="nav-item{% if u == 'dashboard' %} active{% endif %}" href="{% url 'studio:dashboard' %}" title="Tổng quan">{% include "studio/_icon.html" with name="dashboard" %}<span class="label">Tổng quan</span></a>
+  <a class="nav-item{% if u == 'schedule' or u == 'post_edit' %} active{% endif %}" href="{% url 'studio:schedule' %}" title="Lịch đăng">{% include "studio/_icon.html" with name="calendar" %}<span class="label">Lịch đăng</span></a>
+  <a class="nav-item{% if u == 'videos' or u == 'video_detail' or u == 'video_upload' %} active{% endif %}" href="{% url 'studio:videos' %}" title="Kho video">{% include "studio/_icon.html" with name="video" %}<span class="label">Kho video</span></a>
+  <a class="nav-item{% if u == 'channels' or u == 'channel_add' or u == 'channel_edit' %} active{% endif %}" href="{% url 'studio:channels' %}" title="Kênh">{% include "studio/_icon.html" with name="channels" %}<span class="label">Kênh</span></a>
+  <a class="nav-item{% if u == 'settings' or u == 'provider_add' or u == 'provider_edit' %} active{% endif %}" href="{% url 'studio:settings' %}" title="Cài đặt">{% include "studio/_icon.html" with name="settings" %}<span class="label">Cài đặt</span></a>
+  {% endif %}
+
+  <div class="nav-section">Kênh{% if not user.is_manager %} của tôi{% endif %}</div>
+  <div class="nav-channels">
+    {% for c in sidebar_channels %}
+    <a class="nav-item{% if request.GET.kenh == c.pk|stringformat:'s' %} active{% endif %}" title="{{ c.name }}"
+       href="{% if user.is_manager %}{% url 'studio:schedule' %}?kenh={{ c.pk }}{% else %}{% url 'studio:my_tasks' %}?kenh={{ c.pk }}{% endif %}">
+      <span class="avatar">{{ c.name|slice:":1" }}</span><span class="label">{{ c.name }}</span>
+      {% if c.pending_today %}<span class="count">{{ c.pending_today }}</span>{% endif %}
+    </a>
+    {% empty %}
+    <span class="nav-item muted small"><span class="label">Chưa có kênh</span></span>
+    {% endfor %}
+  </div>
+
+  <div class="sidebar-foot">
+    <span class="avatar">{{ user.get_short_name|default:user.username|slice:":1" }}</span>
+    <div class="who"><b>{{ user }}</b><span class="muted small">{% if user.is_manager %}Quản lý{% else %}Nhân viên{% endif %}</span></div>
+    <button type="button" class="icon-btn collapse-btn" data-toggle-collapse title="Thu gọn menu">{% include "studio/_icon.html" with name="collapse" %}</button>
+    <form method="post" action="{% url 'studio:logout' %}" class="inline">{% csrf_token %}<button class="icon-btn" title="Đăng xuất">{% include "studio/_icon.html" with name="logout" %}</button></form>
+  </div>
+</aside>
+<div class="backdrop" data-close-sidebar></div>
+{% endwith %}
+
+<div class="main-wrap">
+  <header class="mobilebar">
+    <button type="button" class="icon-btn" data-open-sidebar aria-label="Mở menu">{% include "studio/_icon.html" with name="menu" %}</button>
+    <a class="brand" href="{% url 'studio:home' %}"><span class="brand-mark">L</span><span>Lên Lịch</span></a>
+    {% if user.is_manager %}<a class="btn primary small" href="{% url 'studio:video_upload' %}">{% include "studio/_icon.html" with name="plus" %}Video</a>{% endif %}
+  </header>
+  <main class="panel">
+    {% if messages %}<ul class="messages">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% else %}
+  {% block public %}{% endblock %}
+{% endif %}
 <script src="{% static 'studio/app.js' %}"></script>
 </body>
 </html>

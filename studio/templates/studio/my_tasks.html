@@ -1,25 +1,30 @@
 {% extends "studio/base.html" %}
 {% block title %}Việc của tôi{% endblock %}
 {% block content %}
-<div class="row spread">
-  <h1>{% if staff == user %}Việc của tôi{% else %}Việc của {{ staff }}{% endif %} · {{ day|date:"l d/m" }}</h1>
+<div class="tasks">
+<div class="page-head">
+  <div>
+    <h1>{% if staff == user %}Việc của tôi{% else %}Việc của {{ staff }}{% endif %}</h1>
+    <div class="sub muted">{{ day|date:"l, d/m/Y" }}{% if channel %} · kênh {{ channel.name }} <a href="?ngay={{ day|date:'Y-m-d' }}{% if staff != user %}&nv={{ staff.pk }}{% endif %}">(bỏ lọc)</a>{% endif %}</div>
+  </div>
   <div class="row">
-    <a class="btn small" href="?ngay={{ prev_day|date:'Y-m-d' }}{% if staff != user %}&nv={{ staff.pk }}{% endif %}">‹ Hôm trước</a>
-    {% if not is_today %}<a class="btn small" href="?{% if staff != user %}nv={{ staff.pk }}{% endif %}">Hôm nay</a>{% endif %}
-    <a class="btn small" href="?ngay={{ next_day|date:'Y-m-d' }}{% if staff != user %}&nv={{ staff.pk }}{% endif %}">Hôm sau ›</a>
+    <a class="btn small" href="?ngay={{ prev_day|date:'Y-m-d' }}{% if staff != user %}&nv={{ staff.pk }}{% endif %}{% if channel %}&kenh={{ channel.pk }}{% endif %}" aria-label="Hôm trước">{% include "studio/_icon.html" with name="left" %}</a>
+    {% if not is_today %}<a class="btn small" href="?{% if staff != user %}nv={{ staff.pk }}{% endif %}{% if channel %}&kenh={{ channel.pk }}{% endif %}">Hôm nay</a>{% endif %}
+    <a class="btn small" href="?ngay={{ next_day|date:'Y-m-d' }}{% if staff != user %}&nv={{ staff.pk }}{% endif %}{% if channel %}&kenh={{ channel.pk }}{% endif %}" aria-label="Hôm sau">{% include "studio/_icon.html" with name="right" %}</a>
   </div>
 </div>
 
 {% if staff_choices %}
 <form method="get" class="row" style="margin-bottom:12px">
   <input type="hidden" name="ngay" value="{{ day|date:'Y-m-d' }}">
-  <select name="nv" onchange="this.form.submit()" style="max-width:280px">
+  <select name="nv" class="compact" onchange="this.form.submit()">
     {% for s in staff_choices %}<option value="{{ s.pk }}" {% if s == staff %}selected{% endif %}>{{ s }}</option>{% endfor %}
   </select>
 </form>
 {% endif %}
 
-<p class="muted">Còn <b>{{ pending_count }}</b> bài chờ đăng · đã đăng <b>{{ done_count }}</b>/{{ posts|length }} bài trong ngày.</p>
+<div class="row spread small"><span>Đã đăng <b>{{ done_count }}</b>/{{ posts|length }} bài trong ngày</span><span class="muted">Còn {{ pending_count }} bài chờ{% if overdue %} (có {{ overdue|length }} bài trễ){% endif %}</span></div>
+<div class="progress"><span style="width:{% widthratio done_count posts|length|default:1 100 %}%"></span></div>
 
 {% if overdue %}
 <h2>Bài trễ từ hôm trước</h2>
@@ -29,6 +34,7 @@
 {% if posts %}
   {% for p in posts %}{% include "studio/_task.html" with is_today_list=True %}{% endfor %}
 {% elif not overdue %}
-  <div class="card muted">Không có bài nào trong ngày này.</div>
+  <div class="empty">Không có bài nào trong ngày này.</div>
 {% endif %}
+</div>
 {% endblock %}

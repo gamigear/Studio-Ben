@@ -1,19 +1,19 @@
 {% extends "studio/base.html" %}
 {% block title %}Kho video{% endblock %}
 {% block content %}
-<div class="row spread"><h1>Kho video</h1><a class="btn primary" href="{% url 'studio:video_upload' %}{% if channel_id %}?kenh={{ channel_id }}{% endif %}">+ Tải video lên</a></div>
+<div class="page-head"><div><h1>Kho video</h1><div class="sub muted small">Video từ Google Drive, tải lên và agent. Video sẵn sàng được tự xếp vào lịch.</div></div><a class="btn primary" href="{% url 'studio:video_upload' %}{% if channel_id %}?kenh={{ channel_id }}{% endif %}">{% include "studio/_icon.html" with name="plus" %}Tải video lên</a></div>
 <form method="get" class="row" style="margin-bottom:12px">
-  <select name="kenh" onchange="this.form.submit()" style="max-width:240px">
+  <select name="kenh" class="compact" onchange="this.form.submit()">
     <option value="">Tất cả kênh</option>
     {% for c in channels %}<option value="{{ c.pk }}" {% if c.pk|stringformat:'s' == channel_id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
   </select>
-  <select name="trang-thai" onchange="this.form.submit()" style="max-width:240px">
+  <select name="trang-thai" class="compact" onchange="this.form.submit()">
     <option value="">Mọi trạng thái</option>
     {% for key, label in status_filters %}<option value="{{ key }}" {% if key == status %}selected{% endif %}>{{ label }}</option>{% endfor %}
   </select>
 </form>
 <div class="table-wrap"><table>
-  <tr><th>Video</th><th>Kênh</th><th>Nguồn</th><th>Trạng thái</th><th class="hide-sm">Caption</th></tr>
+  <thead><tr><th>Video</th><th>Kênh</th><th>Nguồn</th><th>Trạng thái</th><th class="hide-sm">Caption</th></tr></thead><tbody>
   {% for v in page %}
   <tr>
     <td><a href="{% url 'studio:video_detail' v.pk %}">{{ v.title|truncatechars:60 }}</a><br><span class="muted small">{{ v.created_at|date:"d/m H:i" }}</span></td>
@@ -23,7 +23,7 @@
     <td class="small hide-sm">{{ v.caption|truncatechars:90 }}</td>
   </tr>
   {% empty %}<tr><td colspan="5" class="muted">Chưa có video.</td></tr>{% endfor %}
-</table></div>
+</tbody></table></div>
 {% if page.has_other_pages %}
 <div class="pager">
   {% if page.has_previous %}<a class="btn small" href="?kenh={{ channel_id|default:'' }}&trang-thai={{ status|default:'' }}&trang={{ page.previous_page_number }}">‹ Trước</a>{% endif %}

@@ -150,7 +150,9 @@ curl -H "Authorization: Bearer $TOKEN" "$BASE/posts?day=2026-10-21&status=pendin
    chọn vai trò *Nhân viên*, hoặc *Quản lý* cho người được xem mọi thứ. Người quản lý nào cần tự thêm nhân viên thì
    tick thêm *Staff status* và cấp quyền quản lý người dùng.
 3. Theo dõi **Tổng quan**: tiến độ từng người, bài trễ, kho mỗi kênh còn đủ mấy ngày (đỏ là sắp hết video).
-4. **Lịch đăng**: xem/sửa bài theo ngày, đổi giờ hoặc người đăng, gỡ bài (video quay lại kho).
+4. **Lịch đăng**: xem theo ngày / tuần / tháng, lọc theo kênh và nhân viên; mỗi bài là một thẻ màu theo trạng thái
+   (xanh dương: chờ đăng, vàng: đến giờ, đỏ: trễ, xanh lá: đã đăng, xám: bỏ qua). Bấm vào bài để đổi giờ, người đăng,
+   caption; gỡ bài thì video quay lại kho.
 
 **Nhân viên (trên điện thoại)**
 1. Mở `https://lenlich.tiepdi.com` → đăng nhập → *Thêm vào màn hình chính* để mở như app.
@@ -180,6 +182,7 @@ config/                 cấu hình Django
 studio/models.py        Kênh, Video, Bài đăng, Dịch vụ AI, API key
 studio/services/        drive.py (Google Drive), ai.py (caption), scheduler.py (xếp lịch)
 studio/views/           giao diện tiếng Việt
+studio/static/studio/app.css   màu và bố cục; đổi màu thương hiệu ở các biến --brand-* đầu file
 studio/api.py           REST API cho agent (django-ninja)
 studio/management/commands/run_worker.py   worker nền
 tests/                  pytest

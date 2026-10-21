@@ -1,47 +1,47 @@
 {% load tz %}
-<article class="card task{% if p.status == 'posted' %} done{% elif p.is_overdue %} late{% elif p.is_due %} due{% endif %}" data-task id="bai-{{ p.pk }}">
+<article class="card task{% if p.status == 'posted' %} done{% elif p.status == 'skipped' %} skipped{% elif p.is_overdue %} late{% elif p.is_due %} due{% endif %}" data-task id="bai-{{ p.pk }}">
   <div class="task-head">
     <span class="task-time">{{ p.scheduled_at|localtime|time:"H:i" }}</span>
     {% if not is_today_list %}<span class="muted small">{{ p.scheduled_at|localtime|date:"d/m" }}</span>{% endif %}
+    <span class="avatar">{{ p.channel.name|slice:":1" }}</span>
     <strong>{{ p.channel.name }}</strong>
     {% if p.channel.handle %}<span class="muted">@{{ p.channel.handle|cut:"@" }}</span>{% endif %}
     {% if p.channel.device %}<span class="badge">📱 {{ p.channel.device }}</span>{% endif %}
-    {% if p.status == 'posted' %}<span class="badge ok">Đã đăng {{ p.posted_at|localtime|time:"H:i" }}</span>
-    {% elif p.status == 'skipped' %}<span class="badge">Bỏ qua</span>
-    {% elif p.is_overdue %}<span class="badge bad">Trễ</span>
-    {% elif p.is_due %}<span class="badge warn">Đến giờ</span>{% endif %}
+    <span class="badge {{ p.status_class }}">{{ p.status_label }}{% if p.status == 'posted' and p.posted_at %} {{ p.posted_at|localtime|time:"H:i" }}{% endif %}</span>
   </div>
 
   {% if p.status == 'pending' %}
     {% if p.video.file %}
     <video controls playsinline preload="none" src="{% url 'studio:post_video' p.pk %}"></video>
     {% else %}
-    <p class="badge bad">Video chưa có trên máy chủ</p>
+    <p><span class="badge bad">Video chưa có trên máy chủ</span></p>
     {% endif %}
     <textarea rows="5" readonly data-caption>{{ p.caption }}</textarea>
     <div class="actions">
-      <button type="button" class="btn" data-copy-caption>Copy caption</button>
-      <a class="btn" href="{% url 'studio:post_video' p.pk %}?tai=1">Tải video</a>
       {% if p.video.file %}
-      <button type="button" class="btn wide" data-share="{% url 'studio:post_video' p.pk %}" data-filename="{{ p.video.original_name|default:'video.mp4' }}">Chia sẻ sang TikTok</button>
+      <button type="button" class="btn primary wide" data-share="{% url 'studio:post_video' p.pk %}" data-filename="{{ p.video.original_name|default:'video.mp4' }}">Chia sẻ sang TikTok</button>
       {% endif %}
+      <button type="button" class="btn" data-copy-caption>{% include "studio/_icon.html" with name="copy" %}Copy caption</button>
+      <a class="btn" href="{% url 'studio:post_video' p.pk %}?tai=1">{% include "studio/_icon.html" with name="download" %}Tải video</a>
     </div>
     <form method="post" action="{% url 'studio:mark_posted' p.pk %}" class="posted-form">
       {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}#bai-{{ p.pk }}">
       <input type="url" name="post_url" placeholder="Link bài đã đăng (không bắt buộc)">
-      <button class="btn primary">Đã đăng</button>
+      <button class="btn">{% include "studio/_icon.html" with name="check" %}Đã đăng</button>
     </form>
     <form method="post" action="{% url 'studio:skip_post' p.pk %}" class="row" style="margin-top:8px" data-confirm="Bỏ qua bài này?">
       {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
       <input type="text" name="note" placeholder="Lý do bỏ qua (không bắt buộc)" style="flex:1">
-      <button class="btn small danger">Bỏ qua</button>
+      <button class="btn small ghost danger">Bỏ qua</button>
     </form>
   {% else %}
-    {% if p.post_url %}<p class="small"><a href="{{ p.post_url }}" target="_blank" rel="noopener">Xem bài đã đăng</a></p>{% endif %}
+    <div class="row">
+      {% if p.post_url %}<a class="btn small" href="{{ p.post_url }}" target="_blank" rel="noopener">Xem bài đã đăng</a>{% endif %}
+      <form method="post" action="{% url 'studio:undo_post' p.pk %}" class="inline">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button class="btn small ghost">Hoàn tác</button>
+      </form>
+    </div>
     {% if p.note %}<p class="small muted">{{ p.note }}</p>{% endif %}
-    <form method="post" action="{% url 'studio:undo_post' p.pk %}" class="inline">
-      {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
-      <button class="btn small">Hoàn tác</button>
-    </form>
   {% endif %}
 </article>

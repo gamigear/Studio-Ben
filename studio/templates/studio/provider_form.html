@@ -1,15 +1,15 @@
 {% extends "studio/base.html" %}
 {% block title %}Dịch vụ AI{% endblock %}
 {% block content %}
-<h1>{% if provider %}Sửa dịch vụ AI {{ provider.name }}{% else %}Thêm dịch vụ AI{% endif %}</h1>
-<div class="card">
+<div class="page-head"><h1>{% if provider %}Sửa dịch vụ AI {{ provider.name }}{% else %}Thêm dịch vụ AI{% endif %}</h1></div>
+<div class="form-narrow">
   <form method="post" autocomplete="off">{% csrf_token %}{% include "studio/_form.html" %}
     <details style="margin-bottom:14px"><summary class="small">Xem hướng dẫn mặc định (dùng khi để trống ô “hướng dẫn chung”)</summary>
       <pre class="small" style="white-space:pre-wrap">{{ default_prompt }}</pre></details>
     <div class="row"><button class="btn primary">Lưu</button><a class="btn" href="{% url 'studio:settings' %}">Hủy</a></div>
   </form>
 </div>
-<div class="card small muted">
+<div class="card soft small muted form-narrow">
   <b>Gợi ý cấu hình:</b><br>
   OpenAI: base URL <code>https://api.openai.com/v1</code>, model ví dụ <code>gpt-4.1-mini</code> (kiểm tra danh sách model trong tài khoản OpenAI).<br>
   OpenRouter: <code>https://openrouter.ai/api/v1</code> · DeepSeek: <code>https://api.deepseek.com/v1</code> ·

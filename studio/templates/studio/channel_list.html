@@ -2,27 +2,31 @@
 {% load tz %}
 {% block title %}Kênh{% endblock %}
 {% block content %}
-<div class="row spread"><h1>Kênh</h1><a class="btn primary" href="{% url 'studio:channel_add' %}">+ Thêm kênh</a></div>
-{% if drive_email %}<p class="muted small">Chia sẻ thư mục Drive của mỗi kênh (quyền Người xem) cho: <code>{{ drive_email }}</code></p>{% endif %}
+<div class="page-head">
+  <div><h1>Kênh</h1>{% if drive_email %}<div class="sub muted small">Chia sẻ thư mục Drive của mỗi kênh (quyền Người xem) cho <code>{{ drive_email }}</code></div>{% endif %}</div>
+  <a class="btn primary" href="{% url 'studio:channel_add' %}">{% include "studio/_icon.html" with name="plus" %}Thêm kênh</a>
+</div>
 <div class="table-wrap"><table>
-  <tr><th>Kênh</th><th>Phụ trách</th><th>Điện thoại</th><th>Giờ đăng</th><th>Kho sẵn sàng</th><th>Google Drive</th><th></th></tr>
+  <thead><tr><th>Kênh</th><th>Phụ trách</th><th>Điện thoại</th><th>Giờ đăng</th><th>Kho sẵn sàng</th><th>Google Drive</th><th></th></tr></thead>
+  <tbody>
   {% for c in channels %}
   <tr>
-    <td><a href="{% url 'studio:channel_edit' c.pk %}"><b>{{ c.name }}</b></a><br>
+    <td><div class="row"><span class="avatar">{{ c.name|slice:":1" }}</span><div><a href="{% url 'studio:channel_edit' c.pk %}"><b>{{ c.name }}</b></a><br>
       <span class="muted small">{{ c.get_platform_display }}{% if c.handle %} · @{{ c.handle|cut:"@" }}{% endif %}</span>
-      {% if not c.is_active %}<span class="badge">Tạm dừng</span>{% endif %}</td>
+      {% if not c.is_active %}<span class="badge">Tạm dừng</span>{% endif %}</div></div></td>
     <td>{{ c.assignee|default:"—" }}</td>
     <td>{{ c.device|default:"—" }}</td>
     <td class="small">{{ c.post_times|default:"—" }}</td>
     <td><a href="{% url 'studio:videos' %}?kenh={{ c.pk }}">{{ c.ready }}</a></td>
     <td class="small">
       {% if not c.drive_folder_id %}<span class="muted">Chưa gắn</span>
-      {% elif c.drive_error %}<span class="badge bad" title="{{ c.drive_error }}">Lỗi</span>
-      {% elif c.drive_synced_at %}<span class="badge ok">Quét {{ c.drive_synced_at|localtime|date:"H:i d/m" }}</span>
+      {% elif c.drive_error %}<span class="badge st-late" title="{{ c.drive_error }}">Lỗi</span>
+      {% elif c.drive_synced_at %}<span class="badge st-posted">Quét {{ c.drive_synced_at|localtime|date:"H:i d/m" }}</span>
       {% else %}<span class="badge">Chưa quét</span>{% endif %}
     </td>
-    <td>{% if c.drive_folder_id %}<form method="post" action="{% url 'studio:channel_sync' c.pk %}" class="inline">{% csrf_token %}<button class="btn small">Quét Drive</button></form>{% endif %}</td>
+    <td>{% if c.drive_folder_id %}<form method="post" action="{% url 'studio:channel_sync' c.pk %}" class="inline">{% csrf_token %}<button class="btn small">{% include "studio/_icon.html" with name="refresh" %}Quét Drive</button></form>{% endif %}</td>
   </tr>
   {% empty %}<tr><td colspan="7" class="muted">Chưa có kênh nào.</td></tr>{% endfor %}
+  </tbody>
 </table></div>
 {% endblock %}

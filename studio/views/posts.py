@@ -47,6 +47,9 @@ def my_tasks(request):
             staff = get_object_or_404(User, pk=request.GET["nv"])
 
     base = Post.objects.filter(assignee=staff).select_related("channel", "video")
+    channel_id = request.GET.get("kenh", "")
+    if channel_id.isdigit():
+        base = base.filter(channel_id=channel_id)
     posts = list(base.filter(scheduled_at__gte=start, scheduled_at__lt=end))
     # Bài các ngày trước chưa đăng vẫn hiện ở đầu danh sách hôm nay.
     overdue = (
@@ -63,6 +66,7 @@ def my_tasks(request):
             "is_today": day == timezone.localdate(),
             "staff": staff,
             "staff_choices": staff_choices,
+            "channel": Channel.objects.filter(pk=channel_id).first() if channel_id.isdigit() else None,
             "overdue": overdue,
             "posts": posts,
             "pending_count": len(pending) + len(overdue),
@@ -212,26 +216,86 @@ def dashboard(request):
     )
 
 
+WEEKDAY_LABELS = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"]
+VIEWS = {"ngay": "Ngày", "tuan": "Tuần", "thang": "Tháng"}
+
+
+def _calendar_range(view: str, anchor: date) -> tuple[date, date, date, date]:
+    """Trả về (ngày đầu, ngày cuối + 1, mốc trước, mốc sau) của khung lịch đang xem."""
+    if view == "ngay":
+        return anchor, anchor + timedelta(days=1), anchor - timedelta(days=1), anchor + timedelta(days=1)
+    if view == "thang":
+        first = anchor.replace(day=1)
+        next_month = (first + timedelta(days=32)).replace(day=1)
+        prev_month = (first - timedelta(days=1)).replace(day=1)
+        grid_start = first - timedelta(days=first.weekday())
+        grid_end = next_month + timedelta(days=(7 - next_month.weekday()) % 7)
+        return grid_start, grid_end, prev_month, next_month
+    week_start = anchor - timedelta(days=anchor.weekday())
+    return week_start, week_start + timedelta(days=7), week_start - timedelta(days=7), week_start + timedelta(days=7)
+
+
 @manager_required
 def schedule_list(request):
-    day = _parse_day(request.GET.get("ngay"))
-    start, end = _day_range(day)
-    posts = Post.objects.filter(scheduled_at__gte=start, scheduled_at__lt=end).select_related(
+    view = request.GET.get("xem") if request.GET.get("xem") in VIEWS else "tuan"
+    anchor = _parse_day(request.GET.get("ngay"))
+    first, last, prev_anchor, next_anchor = _calendar_range(view, anchor)
+    range_start, _ = _day_range(first)
+    range_end, _ = _day_range(last)
+
+    posts = Post.objects.filter(scheduled_at__gte=range_start, scheduled_at__lt=range_end).select_related(
         "channel", "assignee", "video"
     )
     channel_id = request.GET.get("kenh", "")
     if channel_id.isdigit():
         posts = posts.filter(channel_id=channel_id)
+    staff_id = request.GET.get("nv", "")
+    if staff_id.isdigit():
+        posts = posts.filter(assignee_id=staff_id)
+
+    by_day: dict[date, list[Post]] = {}
+    for post in posts:
+        by_day.setdefault(timezone.localtime(post.scheduled_at).date(), []).append(post)
+    today = timezone.localdate()
+    days = [
+        {
+            "date": first + timedelta(days=i),
+            "posts": by_day.get(first + timedelta(days=i), []),
+            "is_today": first + timedelta(days=i) == today,
+            "in_month": view != "thang" or (first + timedelta(days=i)).month == anchor.month,
+        }
+        for i in range((last - first).days)
+    ]
+    weeks = [days[i : i + 7] for i in range(0, len(days), 7)]
+
+    if view == "ngay":
+        title = f"{WEEKDAY_LABELS[anchor.weekday()]}, {anchor:%d/%m/%Y}"
+    elif view == "thang":
+        title = f"Tháng {anchor.month}/{anchor.year}"
+    else:
+        title = f"{first:%d/%m} – {last - timedelta(days=1):%d/%m/%Y}"
+
+    filters = "".join(f"&{k}={v}" for k, v in (("kenh", channel_id), ("nv", staff_id)) if v.isdigit())
     return render(
         request,
         "studio/schedule.html",
         {
-            "day": day,
-            "prev_day": day - timedelta(days=1),
-            "next_day": day + timedelta(days=1),
-            "posts": posts,
+            "view": view,
+            "views": VIEWS,
+            "anchor": anchor,
+            "title": title,
+            "prev_anchor": prev_anchor,
+            "next_anchor": next_anchor,
+            "today": today,
+            "weekday_labels": WEEKDAY_LABELS,
+            "days": days,
+            "weeks": weeks,
+            "posts": list(posts),
+            "filters": filters,
             "channels": Channel.objects.filter(is_active=True),
+            "staff_choices": User.objects.filter(is_active=True).order_by("first_name", "username"),
             "channel_id": channel_id,
+            "staff_id": staff_id,
         },
     )
 
