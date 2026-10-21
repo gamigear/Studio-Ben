@@ -1,0 +1,16 @@
+{% extends "studio/base.html" %}
+{% block title %}Đăng nhập{% endblock %}
+{% block content %}
+<div class="card login">
+  <h1>Lên Lịch</h1>
+  <p class="muted">Đăng nhập để xem lịch đăng bài.</p>
+  <form method="post">
+    {% csrf_token %}
+    {% if form.errors %}<ul class="errorlist"><li>Sai tên đăng nhập hoặc mật khẩu.</li></ul>{% endif %}
+    <div class="field"><label for="id_username">Tên đăng nhập</label>{{ form.username }}</div>
+    <div class="field"><label for="id_password">Mật khẩu</label>{{ form.password }}</div>
+    <input type="hidden" name="next" value="{{ next }}">
+    <button class="btn primary" style="width:100%">Đăng nhập</button>
+  </form>
+</div>
+{% endblock %}

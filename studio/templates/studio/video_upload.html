@@ -1,0 +1,11 @@
+{% extends "studio/base.html" %}
+{% block title %}Tải video lên{% endblock %}
+{% block content %}
+<h1>Tải video lên</h1>
+<p class="muted small">Dùng cho video tự quay hoặc video lẻ. Video từ các quy trình tự động nên đẩy vào thư mục Google Drive của kênh.</p>
+<div class="card">
+  <form method="post" enctype="multipart/form-data">{% csrf_token %}{% include "studio/_form.html" %}
+    <div class="row"><button class="btn primary">Tải lên</button><a class="btn" href="{% url 'studio:videos' %}">Hủy</a></div>
+  </form>
+</div>
+{% endblock %}

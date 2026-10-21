@@ -1,0 +1,45 @@
+{% extends "studio/base.html" %}
+{% load tz %}
+{% block title %}Lịch đăng{% endblock %}
+{% block content %}
+<div class="row spread">
+  <h1>Lịch đăng · {{ day|date:"l d/m/Y" }}</h1>
+  <div class="row">
+    <a class="btn small" href="?ngay={{ prev_day|date:'Y-m-d' }}{% if channel_id %}&kenh={{ channel_id }}{% endif %}">‹</a>
+    <form method="get" class="row">
+      <input type="date" name="ngay" value="{{ day|date:'Y-m-d' }}" onchange="this.form.submit()">
+      <select name="kenh" onchange="this.form.submit()">
+        <option value="">Tất cả kênh</option>
+        {% for c in channels %}<option value="{{ c.pk }}" {% if c.pk|stringformat:'s' == channel_id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+      </select>
+    </form>
+    <a class="btn small" href="?ngay={{ next_day|date:'Y-m-d' }}{% if channel_id %}&kenh={{ channel_id }}{% endif %}">›</a>
+    <form method="post" action="{% url 'studio:schedule_now' %}" class="inline">{% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn small primary">Xếp lịch ngay</button></form>
+  </div>
+</div>
+<p class="muted small">Worker tự xếp video sẵn sàng vào các khung giờ còn trống của mỗi kênh (vài ngày tới). Gỡ một bài thì video quay lại kho.</p>
+<div class="table-wrap"><table>
+  <tr><th>Giờ</th><th>Kênh</th><th>Video</th><th>Nhân viên</th><th>Trạng thái</th><th></th></tr>
+  {% for p in posts %}
+  <tr>
+    <td><b>{{ p.scheduled_at|localtime|time:"H:i" }}</b></td>
+    <td>{{ p.channel.name }}</td>
+    <td><a href="{% url 'studio:video_detail' p.video_id %}">{{ p.video.title|truncatechars:50 }}</a></td>
+    <td>{{ p.assignee|default:"—" }}</td>
+    <td>
+      {% if p.status == 'posted' %}<span class="badge ok">Đã đăng</span>{% if p.post_url %} <a href="{{ p.post_url }}" target="_blank" rel="noopener">link</a>{% endif %}
+      {% elif p.status == 'skipped' %}<span class="badge">Bỏ qua</span>
+      {% elif p.is_overdue %}<span class="badge bad">Trễ</span>
+      {% else %}<span class="badge warn">Chờ đăng</span>{% endif %}
+    </td>
+    <td class="row">
+      <a class="btn small" href="{% url 'studio:post_edit' p.pk %}">Sửa</a>
+      {% if p.status == 'pending' %}
+      <form method="post" action="{% url 'studio:post_unschedule' p.pk %}" class="inline" data-confirm="Gỡ bài này khỏi lịch?">{% csrf_token %}<button class="btn small danger">Gỡ</button></form>
+      {% endif %}
+    </td>
+  </tr>
+  {% empty %}<tr><td colspan="6" class="muted">Không có bài nào trong ngày này.</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

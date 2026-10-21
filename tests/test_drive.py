@@ -1,0 +1,109 @@
+import httpx
+
+from studio.models import Channel, Post, Video
+from studio.services import drive
+
+
+class FakeDrive:
+    def __init__(self, files, texts=None):
+        self.files = files
+        self.texts = texts or {}
+
+    def list_folder(self, folder_id):
+        return self.files
+
+    def download_text(self, file_id):
+        return self.texts[file_id]
+
+
+def test_sync_creates_videos_with_sidecar_notes(channel):
+    channel.drive_folder_id = "folder1"
+    channel.save()
+    fake = FakeDrive(
+        [
+            {"id": "v1", "name": "meo-tay-dau-mo.mp4", "mimeType": "video/mp4", "size": "1000"},
+            {"id": "t1", "name": "meo-tay-dau-mo.txt", "mimeType": "text/plain"},
+            {"id": "v2", "name": "clip2.mov", "mimeType": "video/quicktime"},
+            {"id": "x", "name": "anh.jpg", "mimeType": "image/jpeg"},
+        ],
+        {"t1": "Kịch bản: tẩy dầu mỡ bằng baking soda"},
+    )
+    assert drive.sync_channel(channel, fake) == 2
+    v1 = Video.objects.get(drive_file_id="v1")
+    assert v1.title == "meo-tay-dau-mo" and v1.notes.startswith("Kịch bản")
+    assert v1.size == 1000 and v1.file_status == Video.FileStatus.PENDING
+    assert v1.caption_status == Video.CaptionStatus.PENDING and v1.original_name == "meo-tay-dau-mo.mp4"
+    # Quét lại không tạo trùng.
+    assert drive.sync_channel(channel, fake) == 0
+    channel.refresh_from_db()
+    assert channel.drive_synced_at and not channel.drive_error
+
+
+def test_sync_manual_caption_channel_uses_default_hashtags(channel):
+    channel.auto_caption = False
+    channel.save()
+    drive.sync_channel(channel, FakeDrive([{"id": "v1", "name": "a.mp4", "mimeType": "video/mp4"}]))
+    video = Video.objects.get()
+    assert video.caption_status == Video.CaptionStatus.MANUAL and video.caption == "#meovat #giadinh"
+
+
+def test_sync_records_error(channel):
+    class Broken:
+        def list_folder(self, folder_id):
+            raise drive.DriveError("Không tìm thấy thư mục")
+
+    assert drive.sync_channel(channel, Broken()) == 0
+    assert Channel.objects.get(pk=channel.pk).drive_error == "Không tìm thấy thư mục"
+
+
+def test_archived_drive_video_is_not_recreated(channel):
+    fake = FakeDrive([{"id": "v1", "name": "a.mp4", "mimeType": "video/mp4"}])
+    drive.sync_channel(channel, fake)
+    Video.objects.update(is_archived=True)
+    assert drive.sync_channel(channel, fake) == 0
+
+
+def test_download_pending_streams_file(channel, mock_http, monkeypatch, settings):
+    settings.GOOGLE_SERVICE_ACCOUNT_JSON = '{"client_email": "sa@x.iam.gserviceaccount.com"}'
+    monkeypatch.setattr(drive.DriveClient, "_token", lambda self: "tok")
+    video = Video.objects.create(
+        channel=channel, source=Video.Source.DRIVE, title="clip", original_name="clip.mov", drive_file_id="v1"
+    )
+    calls = mock_http(lambda request: httpx.Response(200, content=b"videobytes"))
+    assert drive.download_pending() == 1
+    video.refresh_from_db()
+    assert video.file_status == Video.FileStatus.READY and video.size == 10
+    assert video.file.name.endswith(".mov")
+    with video.file.open("rb") as fh:
+        assert fh.read() == b"videobytes"
+    assert calls[0].url.params["alt"] == "media" and calls[0].headers["Authorization"] == "Bearer tok"
+
+
+def test_download_failure_is_recorded(channel, mock_http, monkeypatch, settings):
+    settings.GOOGLE_SERVICE_ACCOUNT_JSON = '{"client_email": "sa@x.iam.gserviceaccount.com"}'
+    monkeypatch.setattr(drive.DriveClient, "_token", lambda self: "tok")
+    video = Video.objects.create(channel=channel, source=Video.Source.DRIVE, title="clip", drive_file_id="v1")
+    mock_http(lambda request: httpx.Response(403, text="forbidden"))
+    assert drive.download_pending() == 0
+    video.refresh_from_db()
+    assert video.file_status == Video.FileStatus.FAILED and "403" in video.file_error
+
+
+def test_cleanup_removes_old_posted_files(channel, make_video, settings):
+    from django.utils import timezone
+
+    settings.MEDIA_RETENTION_DAYS = 7
+    old = make_video()
+    recent = make_video()
+    pending = make_video()
+    now = timezone.now()
+    Post.objects.create(
+        channel=channel, video=old, scheduled_at=now - timezone.timedelta(days=10), status=Post.Status.POSTED
+    )
+    Post.objects.create(
+        channel=channel, video=recent, scheduled_at=now - timezone.timedelta(days=1), status=Post.Status.POSTED
+    )
+    Post.objects.create(channel=channel, video=pending, scheduled_at=now - timezone.timedelta(days=10))
+    assert drive.cleanup_media(now) == 1
+    old.refresh_from_db()
+    assert old.file_status == Video.FileStatus.REMOVED and not old.file

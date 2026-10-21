@@ -1,0 +1,72 @@
+{% extends "studio/base.html" %}
+{% load tz %}
+{% block title %}Tổng quan{% endblock %}
+{% block content %}
+<div class="row spread">
+  <h1>Tổng quan · {{ today|date:"l d/m" }}</h1>
+  <form method="post" action="{% url 'studio:schedule_now' %}" class="inline">{% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.path }}"><button class="btn small">Xếp lịch ngay</button></form>
+</div>
+
+<div class="grid">
+  <div class="stat"><span class="muted small">Bài hôm nay</span><b>{{ totals.total }}</b></div>
+  <div class="stat"><span class="muted small">Đã đăng</span><b>{{ totals.done }}</b></div>
+  <div class="stat"><span class="muted small">Bỏ qua</span><b>{{ totals.skipped }}</b></div>
+  <div class="stat"><span class="muted small">Đang trễ</span><b>{{ late_posts|length }}</b></div>
+</div>
+
+{% if problems.caption_failed or problems.file_failed or problems.drive_errors %}
+<div class="card" style="margin-top:12px">
+  <strong>Cần xử lý</strong>
+  <ul>
+    {% if problems.caption_failed %}<li><a href="{% url 'studio:videos' %}?trang-thai=loi">{{ problems.caption_failed }} video AI chưa viết được caption</a></li>{% endif %}
+    {% if problems.file_failed %}<li><a href="{% url 'studio:videos' %}?trang-thai=loi">{{ problems.file_failed }} video tải từ Drive bị lỗi</a></li>{% endif %}
+    {% for c in problems.drive_errors %}<li>Kênh <a href="{% url 'studio:channel_edit' c.pk %}">{{ c.name }}</a>: {{ c.drive_error }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<h2>Nhân viên hôm nay</h2>
+<div class="table-wrap"><table>
+  <tr><th>Nhân viên</th><th>Đã đăng</th><th>Tổng</th><th>Đang trễ</th><th></th></tr>
+  {% for s in staff_rows %}
+  <tr>
+    <td>{{ s }}</td><td>{{ s.done }}</td><td>{{ s.total }}</td>
+    <td>{% if s.late %}<span class="badge bad">{{ s.late }}</span>{% else %}0{% endif %}</td>
+    <td><a href="{% url 'studio:my_tasks' %}?nv={{ s.pk }}">Xem việc</a></td>
+  </tr>
+  {% empty %}<tr><td colspan="5" class="muted">Chưa có bài nào được giao hôm nay.</td></tr>{% endfor %}
+</table></div>
+
+<h2>Kênh</h2>
+<div class="table-wrap"><table>
+  <tr><th>Kênh</th><th>Phụ trách</th><th>Hôm nay</th><th>Kho sẵn sàng</th><th>Đang xử lý</th></tr>
+  {% for c in channels %}
+  <tr>
+    <td><a href="{% url 'studio:channel_edit' c.pk %}">{{ c.name }}</a> <span class="muted small">{{ c.get_platform_display }}</span></td>
+    <td>{{ c.assignee|default:"—" }}</td>
+    <td>{{ c.today_done }}/{{ c.today_total }}</td>
+    <td>
+      <a href="{% url 'studio:videos' %}?kenh={{ c.pk }}&trang-thai=san-sang">{{ c.ready }} video</a>
+      {% if c.days_left is not None %}
+        {% if c.days_left < 1 %}<span class="badge bad">còn {{ c.days_left }} ngày</span>
+        {% elif c.days_left < 3 %}<span class="badge warn">còn {{ c.days_left }} ngày</span>
+        {% else %}<span class="badge ok">đủ {{ c.days_left }} ngày</span>{% endif %}
+      {% else %}<span class="badge">chưa đặt giờ đăng</span>{% endif %}
+    </td>
+    <td>{{ c.waiting }}</td>
+  </tr>
+  {% empty %}<tr><td colspan="5" class="muted">Chưa có kênh. <a href="{% url 'studio:channel_add' %}">Thêm kênh</a></td></tr>{% endfor %}
+</table></div>
+
+{% if late_posts %}
+<h2>Bài đang trễ</h2>
+<div class="table-wrap"><table>
+  <tr><th>Giờ hẹn</th><th>Kênh</th><th>Nhân viên</th><th></th></tr>
+  {% for p in late_posts %}
+  <tr><td>{{ p.scheduled_at|localtime|date:"d/m H:i" }}</td><td>{{ p.channel.name }}</td><td>{{ p.assignee|default:"— chưa giao —" }}</td>
+    <td><a href="{% url 'studio:post_edit' p.pk %}">Sửa</a></td></tr>
+  {% endfor %}
+</table></div>
+{% endif %}
+{% endblock %}

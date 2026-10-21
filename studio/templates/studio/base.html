@@ -1,0 +1,42 @@
+{% load static %}<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f766e">
+  <title>{% block title %}Lên Lịch{% endblock %} · Lên Lịch</title>
+  <link rel="stylesheet" href="{% static 'studio/app.css' %}">
+</head>
+<body>
+{% if user.is_authenticated %}
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="logo" href="{% url 'studio:home' %}">Lên Lịch</a>
+    {% with u=request.resolver_match.url_name %}
+    <nav class="nav">
+      <a href="{% url 'studio:my_tasks' %}" class="{% if u == 'my_tasks' %}active{% endif %}">Việc của tôi</a>
+      {% if user.is_manager %}
+      <a href="{% url 'studio:dashboard' %}" class="{% if u == 'dashboard' %}active{% endif %}">Tổng quan</a>
+      <a href="{% url 'studio:schedule' %}" class="{% if u == 'schedule' or u == 'post_edit' %}active{% endif %}">Lịch đăng</a>
+      <a href="{% url 'studio:videos' %}" class="{% if u == 'videos' or u == 'video_detail' or u == 'video_upload' %}active{% endif %}">Kho video</a>
+      <a href="{% url 'studio:channels' %}" class="{% if u == 'channels' or u == 'channel_add' or u == 'channel_edit' %}active{% endif %}">Kênh</a>
+      <a href="{% url 'studio:settings' %}" class="{% if u == 'settings' or u == 'provider_add' or u == 'provider_edit' %}active{% endif %}">Cài đặt</a>
+      {% endif %}
+    </nav>
+    {% endwith %}
+    <div class="user small">
+      <span class="muted hide-sm">{{ user }}</span>
+      <form method="post" action="{% url 'studio:logout' %}" class="inline">{% csrf_token %}<button class="btn small">Đăng xuất</button></form>
+    </div>
+  </div>
+</header>
+{% endif %}
+<main>
+  {% if messages %}
+  <ul class="messages">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+<script src="{% static 'studio/app.js' %}"></script>
+</body>
+</html>

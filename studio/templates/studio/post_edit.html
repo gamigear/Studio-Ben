@@ -1,0 +1,11 @@
+{% extends "studio/base.html" %}
+{% block title %}Sửa bài đăng{% endblock %}
+{% block content %}
+<h1>Sửa bài · {{ post.channel.name }}</h1>
+<div class="card">
+  <p><a href="{% url 'studio:video_detail' post.video_id %}">{{ post.video.title }}</a></p>
+  <form method="post">{% csrf_token %}{% include "studio/_form.html" %}
+    <div class="row"><button class="btn primary">Lưu</button><a class="btn" href="{% url 'studio:schedule' %}">Quay lại</a></div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,11 @@
+{% extends "studio/base.html" %}
+{% block title %}{% if channel %}Sửa kênh{% else %}Thêm kênh{% endif %}{% endblock %}
+{% block content %}
+<h1>{% if channel %}Sửa kênh {{ channel.name }}{% else %}Thêm kênh{% endif %}</h1>
+<div class="card">
+  <form method="post">{% csrf_token %}{% include "studio/_form.html" %}
+    {% if drive_email %}<p class="muted small">Nhớ chia sẻ thư mục Drive cho <code>{{ drive_email }}</code> (quyền Người xem).</p>{% endif %}
+    <div class="row"><button class="btn primary">Lưu kênh</button><a class="btn" href="{% url 'studio:channels' %}">Hủy</a></div>
+  </form>
+</div>
+{% endblock %}

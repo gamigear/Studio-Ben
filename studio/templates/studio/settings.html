@@ -1,0 +1,63 @@
+{% extends "studio/base.html" %}
+{% load tz %}
+{% block title %}Cài đặt{% endblock %}
+{% block content %}
+<h1>Cài đặt</h1>
+
+<div class="row spread"><h2>Dịch vụ AI viết caption</h2><a class="btn small primary" href="{% url 'studio:provider_add' %}">+ Thêm dịch vụ AI</a></div>
+<p class="muted small">Dùng được mọi dịch vụ tương thích OpenAI Chat Completions: OpenAI (GPT), OpenRouter, DeepSeek, Gemini (chế độ OpenAI)… Mỗi kênh có thể chọn dịch vụ riêng; kênh không chọn sẽ dùng dịch vụ mặc định.</p>
+<div class="table-wrap"><table>
+  <tr><th>Tên</th><th>Model</th><th class="hide-sm">Base URL</th><th>API key</th><th></th></tr>
+  {% for p in providers %}
+  <tr>
+    <td>{{ p.name }} {% if p.is_default %}<span class="badge ok">Mặc định</span>{% endif %}</td>
+    <td class="mono">{{ p.model }}</td>
+    <td class="mono hide-sm">{{ p.base_url }}</td>
+    <td class="mono">{{ p.masked_key }}</td>
+    <td class="row">
+      <form method="post" action="{% url 'studio:provider_test' p.pk %}" class="inline">{% csrf_token %}<button class="btn small">Thử</button></form>
+      <a class="btn small" href="{% url 'studio:provider_edit' p.pk %}">Sửa</a>
+      <form method="post" action="{% url 'studio:provider_delete' p.pk %}" class="inline" data-confirm="Xóa dịch vụ AI này?">{% csrf_token %}<button class="btn small danger">Xóa</button></form>
+    </td>
+  </tr>
+  {% empty %}<tr><td colspan="5" class="muted">Chưa có dịch vụ AI nào. Video sẽ chờ caption cho tới khi bạn thêm.</td></tr>{% endfor %}
+</table></div>
+
+<h2>API key cho agent</h2>
+<p class="muted small">Agent bên ngoài (Claude, n8n, script của bạn…) dùng khóa này để đẩy video, sửa caption, xem lịch đăng.
+  Tài liệu API: <a href="{% url 'api:openapi-view' %}">{{ app_url }}/api/v1/docs</a></p>
+{% if new_api_key %}
+<div class="keybox">
+  <b>API key mới — chỉ hiện một lần, hãy lưu lại ngay:</b><br>
+  <code>{{ new_api_key }}</code><br>
+  <span class="small">Gửi trong header: <code>Authorization: Bearer {{ new_api_key }}</code></span>
+</div>
+{% endif %}
+<form method="post" action="{% url 'studio:api_key_create' %}" class="row" style="margin-bottom:10px">{% csrf_token %}
+  <input type="text" name="name" placeholder="Tên agent / mục đích, ví dụ: Quy trình Douyin" required style="max-width:360px">
+  <button class="btn primary">Tạo API key</button>
+</form>
+<div class="table-wrap"><table>
+  <tr><th>Tên</th><th>Khóa</th><th>Dùng lần cuối</th><th>Trạng thái</th><th></th></tr>
+  {% for k in api_keys %}
+  <tr>
+    <td>{{ k.name }}<br><span class="muted small">{{ k.created_by|default:"" }} · {{ k.created_at|localtime|date:"d/m/Y" }}</span></td>
+    <td class="mono">{{ k.prefix }}…</td>
+    <td class="small">{{ k.last_used_at|localtime|date:"d/m H:i"|default:"Chưa dùng" }}</td>
+    <td>{% if k.is_active %}<span class="badge ok">Đang dùng</span>{% else %}<span class="badge">Đã thu hồi</span>{% endif %}</td>
+    <td>{% if k.is_active %}<form method="post" action="{% url 'studio:api_key_revoke' k.pk %}" class="inline" data-confirm="Thu hồi khóa này? Agent dùng nó sẽ mất quyền ngay.">{% csrf_token %}<button class="btn small danger">Thu hồi</button></form>{% endif %}</td>
+  </tr>
+  {% empty %}<tr><td colspan="5" class="muted">Chưa có API key.</td></tr>{% endfor %}
+</table></div>
+
+<h2>Google Drive</h2>
+<div class="card">
+  {% if drive_error %}<span class="badge bad">Lỗi</span> {{ drive_error }}
+  {% elif drive_ok %}<span class="badge ok">Đã cấu hình</span> Service account: <code>{{ drive_email }}</code><br>
+    <span class="muted small">Chia sẻ thư mục Drive của từng kênh cho địa chỉ này với quyền Người xem, rồi dán ID thư mục vào kênh.</span>
+  {% else %}<span class="badge warn">Chưa cấu hình</span> Đặt biến môi trường <code>GOOGLE_SERVICE_ACCOUNT_FILE</code> trên máy chủ (xem README).{% endif %}
+</div>
+
+<h2>Người dùng</h2>
+<div class="card">Thêm nhân viên, đổi mật khẩu, phân vai trò (Quản lý / Nhân viên) tại <a href="{% url 'admin:studio_user_changelist' %}">trang quản trị</a>.</div>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "studio/base.html" %}
+{% block title %}Việc của tôi{% endblock %}
+{% block content %}
+<div class="row spread">
+  <h1>{% if staff == user %}Việc của tôi{% else %}Việc của {{ staff }}{% endif %} · {{ day|date:"l d/m" }}</h1>
+  <div class="row">
+    <a class="btn small" href="?ngay={{ prev_day|date:'Y-m-d' }}{% if staff != user %}&nv={{ staff.pk }}{% endif %}">‹ Hôm trước</a>
+    {% if not is_today %}<a class="btn small" href="?{% if staff != user %}nv={{ staff.pk }}{% endif %}">Hôm nay</a>{% endif %}
+    <a class="btn small" href="?ngay={{ next_day|date:'Y-m-d' }}{% if staff != user %}&nv={{ staff.pk }}{% endif %}">Hôm sau ›</a>
+  </div>
+</div>
+
+{% if staff_choices %}
+<form method="get" class="row" style="margin-bottom:12px">
+  <input type="hidden" name="ngay" value="{{ day|date:'Y-m-d' }}">
+  <select name="nv" onchange="this.form.submit()" style="max-width:280px">
+    {% for s in staff_choices %}<option value="{{ s.pk }}" {% if s == staff %}selected{% endif %}>{{ s }}</option>{% endfor %}
+  </select>
+</form>
+{% endif %}
+
+<p class="muted">Còn <b>{{ pending_count }}</b> bài chờ đăng · đã đăng <b>{{ done_count }}</b>/{{ posts|length }} bài trong ngày.</p>
+
+{% if overdue %}
+<h2>Bài trễ từ hôm trước</h2>
+{% for p in overdue %}{% include "studio/_task.html" %}{% endfor %}
+{% endif %}
+
+{% if posts %}
+  {% for p in posts %}{% include "studio/_task.html" with is_today_list=True %}{% endfor %}
+{% elif not overdue %}
+  <div class="card muted">Không có bài nào trong ngày này.</div>
+{% endif %}
+{% endblock %}
