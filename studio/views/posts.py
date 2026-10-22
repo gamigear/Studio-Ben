@@ -10,9 +10,9 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from ..forms import MarkPostedForm, PostEditForm
-from ..models import Channel, Post, Video
-from ..services import scheduler
-from .common import ensure, manager_required, serve_video
+from ..models import Channel, MediaFile, Post, Video
+from ..services import heartbeat, scheduler
+from .common import ensure, manager_required, serve_media
 
 User = get_user_model()
 
@@ -46,7 +46,7 @@ def my_tasks(request):
         if request.GET.get("nv", "").isdigit():
             staff = get_object_or_404(User, pk=request.GET["nv"])
 
-    base = Post.objects.filter(assignee=staff).select_related("channel", "video")
+    base = Post.objects.filter(assignee=staff).select_related("channel", "video").prefetch_related("video__media")
     channel_id = request.GET.get("kenh", "")
     if channel_id.isdigit():
         base = base.filter(channel_id=channel_id)
@@ -76,10 +76,11 @@ def my_tasks(request):
 
 
 @login_required
-def post_video(request, pk):
-    post = get_object_or_404(Post.objects.select_related("video"), pk=pk)
+def post_media(request, pk, media_pk):
+    post = get_object_or_404(Post, pk=pk)
     ensure(post.can_handle(request.user))
-    return serve_video(request, post.video, as_attachment=request.GET.get("tai") == "1")
+    media = get_object_or_404(MediaFile, pk=media_pk, content_id=post.video_id)
+    return serve_media(request, media, as_attachment=request.GET.get("tai") == "1")
 
 
 def _back(request, fallback="studio:my_tasks"):
@@ -201,6 +202,8 @@ def dashboard(request):
         "caption_failed": Video.objects.filter(caption_status=Video.CaptionStatus.FAILED, is_archived=False).count(),
         "file_failed": Video.objects.filter(file_status=Video.FileStatus.FAILED, is_archived=False).count(),
         "drive_errors": [c for c in channels if c.drive_error],
+        "worker_age": heartbeat.seconds_since_beat(),
+        "worker_ok": heartbeat.worker_ok(),
     }
     return render(
         request,

@@ -39,7 +39,12 @@ def schedule_channel(channel: Channel, now: datetime | None = None, days: int | 
     )
     for dt, video in zip(free, videos, strict=False):
         Post.objects.create(
-            channel=channel, video=video, scheduled_at=dt, caption=video.caption, assignee=channel.assignee
+            channel=channel,
+            video=video,
+            scheduled_at=dt,
+            post_format=video.format_for(channel.default_format),
+            caption=video.caption,
+            assignee=channel.assignee,
         )
     return len(videos)
 

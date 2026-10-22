@@ -80,6 +80,16 @@ class AIProvider(models.Model):
         return f"{key[:3]}…{key[-4:]}" if len(key) > 8 else "••••"
 
 
+class PostFormat(models.TextChoices):
+    REELS = "reels", "Reels / video ngắn"
+    FEED = "feed", "Bài viết"
+    STORY = "story", "Story"
+
+
+# Giới hạn caption thực tế của từng nền tảng (ký tự).
+CAPTION_LIMITS = {"tiktok": 2200, "instagram": 2200, "facebook": 5000, "youtube": 5000}
+
+
 class Channel(models.Model):
     class Platform(models.TextChoices):
         TIKTOK = "tiktok", "TikTok"
@@ -99,6 +109,13 @@ class Channel(models.Model):
     default_hashtags = models.CharField("hashtag mặc định", max_length=500, blank=True)
     post_times = models.CharField(
         "giờ đăng mỗi ngày", max_length=200, blank=True, help_text="Cách nhau bằng dấu phẩy, ví dụ: 08:00, 12:00, 19:30"
+    )
+    default_format = models.CharField(
+        "dạng đăng mặc định",
+        max_length=20,
+        choices=PostFormat.choices,
+        default=PostFormat.REELS,
+        help_text="Nội dung ảnh/album/chữ luôn đăng dạng Bài viết.",
     )
     auto_caption = models.BooleanField("AI tự viết caption", default=True)
     ai_provider = models.ForeignKey(
@@ -151,12 +168,24 @@ class Channel(models.Model):
     def get_ai_provider(self):
         return self.ai_provider or AIProvider.objects.filter(is_default=True).first()
 
+    @property
+    def caption_limit(self) -> int:
+        return CAPTION_LIMITS.get(self.platform, 2200)
 
-def video_upload_to(instance, filename):
-    return f"videos/{instance.channel_id}/{timezone.now():%Y%m}/{filename}"
+    @property
+    def is_meta(self) -> bool:
+        return self.platform in (self.Platform.FACEBOOK, self.Platform.INSTAGRAM)
 
 
 class Video(models.Model):
+    """Một nội dung trong kho: video, ảnh, album ảnh hoặc bài chỉ có chữ (tên model giữ "Video" vì lịch sử)."""
+
+    class Kind(models.TextChoices):
+        VIDEO = "video", "Video"
+        IMAGE = "image", "Ảnh"
+        ALBUM = "album", "Album"
+        TEXT = "text", "Chữ"
+
     class Source(models.TextChoices):
         DRIVE = "drive", "Google Drive"
         UPLOAD = "upload", "Tải lên"
@@ -177,15 +206,15 @@ class Video(models.Model):
     READY_CAPTION_STATUSES = (CaptionStatus.DONE, CaptionStatus.MANUAL)
 
     channel = models.ForeignKey(Channel, verbose_name="kênh", on_delete=models.CASCADE, related_name="videos")
+    kind = models.CharField("loại", max_length=20, choices=Kind.choices, default=Kind.VIDEO)
     source = models.CharField("nguồn", max_length=20, choices=Source.choices, default=Source.UPLOAD)
     title = models.CharField("tiêu đề", max_length=300)
     notes = models.TextField("mô tả / kịch bản", blank=True, help_text="Thông tin để AI viết caption.")
-    file = models.FileField("file video", upload_to=video_upload_to, blank=True, max_length=500)
+    # Trạng thái chung của các file (MediaFile): READY khi mọi file đã có trên máy chủ.
     file_status = models.CharField(max_length=20, choices=FileStatus.choices, default=FileStatus.PENDING)
     file_error = models.TextField(blank=True)
+    # File Drive (nội dung 1 file) hoặc thư mục con Drive (album).
     drive_file_id = models.CharField(max_length=200, blank=True, db_index=True)
-    original_name = models.CharField("tên file gốc", max_length=300, blank=True)
-    size = models.BigIntegerField(null=True, blank=True)
     caption = models.TextField("caption", blank=True)
     caption_status = models.CharField(max_length=20, choices=CaptionStatus.choices, default=CaptionStatus.PENDING)
     caption_attempts = models.PositiveSmallIntegerField(default=0)
@@ -195,8 +224,8 @@ class Video(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = "video"
-        verbose_name_plural = "video"
+        verbose_name = "nội dung"
+        verbose_name_plural = "nội dung"
         ordering = ["created_at", "id"]
         constraints = [
             models.UniqueConstraint(
@@ -212,6 +241,35 @@ class Video(models.Model):
     @property
     def is_ready(self) -> bool:
         return self.file_status == self.FileStatus.READY and self.caption_status in self.READY_CAPTION_STATUSES
+
+    @staticmethod
+    def kind_for(media_kinds: list[str]) -> str:
+        if not media_kinds:
+            return Video.Kind.TEXT
+        if len(media_kinds) > 1:
+            return Video.Kind.ALBUM
+        return Video.Kind.VIDEO if media_kinds[0] == MediaFile.Kind.VIDEO else Video.Kind.IMAGE
+
+    def format_for(self, channel_format: str) -> str:
+        """Reels chỉ dành cho video; ảnh/album/chữ chuyển sang Bài viết."""
+        if channel_format == PostFormat.REELS and self.kind != self.Kind.VIDEO:
+            return PostFormat.FEED
+        return channel_format
+
+    def refresh_file_status(self) -> None:
+        """Tính lại trạng thái chung từ các file."""
+        statuses = [m.status for m in self.media.all()]
+        if not statuses or all(st == self.FileStatus.READY for st in statuses):
+            status, error = self.FileStatus.READY, ""
+        elif any(st == self.FileStatus.FAILED for st in statuses):
+            status = self.FileStatus.FAILED
+            error = next(m.error for m in self.media.all() if m.status == self.FileStatus.FAILED)
+        elif all(st == self.FileStatus.REMOVED for st in statuses):
+            status, error = self.FileStatus.REMOVED, ""
+        else:
+            status, error = self.FileStatus.PENDING, ""
+        self.file_status, self.file_error = status, error
+        self.save(update_fields=["file_status", "file_error"])
 
     def apply_caption(self, text: str, status: str) -> None:
         """Lưu caption và cập nhật luôn các bài đang chờ đăng của video này."""
@@ -232,6 +290,54 @@ class Video(models.Model):
         )
 
 
+def video_upload_to(instance, filename):
+    # Chỉ còn dùng trong migration 0001 (trường Video.file cũ).
+    return f"videos/{instance.channel_id}/{timezone.now():%Y%m}/{filename}"
+
+
+def media_upload_to(instance, filename):
+    return f"noi-dung/{instance.content.channel_id}/{timezone.now():%Y%m}/{filename}"
+
+
+class MediaFile(models.Model):
+    """Một file (video hoặc ảnh) của nội dung. Album có nhiều file theo thứ tự `position`."""
+
+    class Kind(models.TextChoices):
+        VIDEO = "video", "Video"
+        IMAGE = "image", "Ảnh"
+
+    content = models.ForeignKey(Video, on_delete=models.CASCADE, related_name="media")
+    position = models.PositiveSmallIntegerField(default=0)
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.VIDEO)
+    file = models.FileField(upload_to=media_upload_to, blank=True, max_length=500)
+    original_name = models.CharField("tên file gốc", max_length=300, blank=True)
+    mime_type = models.CharField(max_length=100, blank=True)
+    size = models.BigIntegerField(null=True, blank=True)
+    drive_file_id = models.CharField(max_length=200, blank=True, db_index=True)
+    status = models.CharField(max_length=20, choices=Video.FileStatus.choices, default=Video.FileStatus.PENDING)
+    error = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "file"
+        verbose_name_plural = "file"
+        ordering = ["position", "id"]
+
+    def __str__(self):
+        return self.original_name or f"file {self.pk}"
+
+    @staticmethod
+    def kind_from_mime(mime: str) -> str | None:
+        if mime.startswith("video/"):
+            return MediaFile.Kind.VIDEO
+        if mime.startswith("image/"):
+            return MediaFile.Kind.IMAGE
+        return None
+
+    @property
+    def is_video(self) -> bool:
+        return self.kind == self.Kind.VIDEO
+
+
 class Post(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Chờ đăng"
@@ -239,8 +345,9 @@ class Post(models.Model):
         SKIPPED = "skipped", "Bỏ qua"
 
     channel = models.ForeignKey(Channel, verbose_name="kênh", on_delete=models.CASCADE, related_name="posts")
-    video = models.ForeignKey(Video, verbose_name="video", on_delete=models.CASCADE, related_name="posts")
+    video = models.ForeignKey(Video, verbose_name="nội dung", on_delete=models.CASCADE, related_name="posts")
     scheduled_at = models.DateTimeField("giờ đăng", db_index=True)
+    post_format = models.CharField("dạng đăng", max_length=20, choices=PostFormat.choices, default=PostFormat.REELS)
     caption = models.TextField("caption", blank=True)
     assignee = models.ForeignKey(
         settings.AUTH_USER_MODEL,

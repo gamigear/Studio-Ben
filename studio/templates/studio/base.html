@@ -17,7 +17,7 @@
 <aside class="sidebar" id="sidebar">
   <a class="brand" href="{% url 'studio:home' %}"><span class="brand-mark">L</span><span class="brand-name">Lên Lịch</span></a>
   {% if user.is_manager %}
-  <a class="btn primary new-btn" href="{% url 'studio:video_upload' %}" title="Thêm video">{% include "studio/_icon.html" with name="plus" %}<span class="label">Thêm video</span></a>
+  <a class="btn primary new-btn" href="{% url 'studio:video_upload' %}" title="Thêm nội dung">{% include "studio/_icon.html" with name="plus" %}<span class="label">Thêm nội dung</span></a>
   {% endif %}
 
   <a class="nav-item{% if u == 'my_tasks' and not request.GET.kenh %} active{% endif %}" href="{% url 'studio:my_tasks' %}" title="Việc của tôi">
@@ -27,7 +27,7 @@
   {% if user.is_manager %}
   <a class="nav-item{% if u == 'dashboard' %} active{% endif %}" href="{% url 'studio:dashboard' %}" title="Tổng quan">{% include "studio/_icon.html" with name="dashboard" %}<span class="label">Tổng quan</span></a>
   <a class="nav-item{% if u == 'schedule' or u == 'post_edit' %} active{% endif %}" href="{% url 'studio:schedule' %}" title="Lịch đăng">{% include "studio/_icon.html" with name="calendar" %}<span class="label">Lịch đăng</span></a>
-  <a class="nav-item{% if u == 'videos' or u == 'video_detail' or u == 'video_upload' %} active{% endif %}" href="{% url 'studio:videos' %}" title="Kho video">{% include "studio/_icon.html" with name="video" %}<span class="label">Kho video</span></a>
+  <a class="nav-item{% if u == 'videos' or u == 'video_detail' or u == 'video_upload' %} active{% endif %}" href="{% url 'studio:videos' %}" title="Kho nội dung">{% include "studio/_icon.html" with name="video" %}<span class="label">Kho nội dung</span></a>
   <a class="nav-item{% if u == 'channels' or u == 'channel_add' or u == 'channel_edit' %} active{% endif %}" href="{% url 'studio:channels' %}" title="Kênh">{% include "studio/_icon.html" with name="channels" %}<span class="label">Kênh</span></a>
   <a class="nav-item{% if u == 'settings' or u == 'provider_add' or u == 'provider_edit' %} active{% endif %}" href="{% url 'studio:settings' %}" title="Cài đặt">{% include "studio/_icon.html" with name="settings" %}<span class="label">Cài đặt</span></a>
   {% endif %}
@@ -37,7 +37,7 @@
     {% for c in sidebar_channels %}
     <a class="nav-item{% if request.GET.kenh == c.pk|stringformat:'s' %} active{% endif %}" title="{{ c.name }}"
        href="{% if user.is_manager %}{% url 'studio:schedule' %}?kenh={{ c.pk }}{% else %}{% url 'studio:my_tasks' %}?kenh={{ c.pk }}{% endif %}">
-      <span class="avatar">{{ c.name|slice:":1" }}</span><span class="label">{{ c.name }}</span>
+      {% include "studio/_platform.html" with platform=c.platform %}<span class="label">{{ c.name }}</span>
       {% if c.pending_today %}<span class="count">{{ c.pending_today }}</span>{% endif %}
     </a>
     {% empty %}
@@ -59,7 +59,7 @@
   <header class="mobilebar">
     <button type="button" class="icon-btn" data-open-sidebar aria-label="Mở menu">{% include "studio/_icon.html" with name="menu" %}</button>
     <a class="brand" href="{% url 'studio:home' %}"><span class="brand-mark">L</span><span>Lên Lịch</span></a>
-    {% if user.is_manager %}<a class="btn primary small" href="{% url 'studio:video_upload' %}">{% include "studio/_icon.html" with name="plus" %}Video</a>{% endif %}
+    {% if user.is_manager %}<a class="btn primary small" href="{% url 'studio:video_upload' %}">{% include "studio/_icon.html" with name="plus" %}Thêm</a>{% endif %}
   </header>
   <main class="panel">
     {% if messages %}<ul class="messages">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}

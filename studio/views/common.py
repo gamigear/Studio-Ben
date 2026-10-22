@@ -33,16 +33,16 @@ def _iter_file(path, start, length, chunk=1024 * 1024):
             yield data
 
 
-def serve_video(request, video, as_attachment=False):
-    """Phát file video có hỗ trợ HTTP Range (Safari trên iPhone cần Range để xem video)."""
-    if not video.file:
-        raise Http404("Video chưa có trên máy chủ.")
+def serve_media(request, media, as_attachment=False):
+    """Phát file (video / ảnh) có hỗ trợ HTTP Range (Safari trên iPhone cần Range để xem video)."""
+    if not media.file:
+        raise Http404("File chưa có trên máy chủ.")
     try:
-        path = video.file.path
+        path = media.file.path
         size = os.path.getsize(path)
     except (OSError, NotImplementedError) as exc:
         raise Http404("Không tìm thấy file video.") from exc
-    content_type = mimetypes.guess_type(path)[0] or "video/mp4"
+    content_type = media.mime_type or mimetypes.guess_type(path)[0] or "application/octet-stream"
     filename = os.path.basename(path)
 
     match = RANGE_RE.match(request.headers.get("Range", "").strip())

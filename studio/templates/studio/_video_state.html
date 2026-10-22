@@ -1,7 +1,7 @@
 {% if v.is_archived %}<span class="badge">Đã lưu trữ</span>
 {% elif v.file_status == 'failed' %}<span class="badge st-late">Tải file lỗi</span>
 {% elif v.caption_status == 'failed' %}<span class="badge st-late">AI lỗi</span>
-{% elif v.file_status == 'pending' %}<span class="badge">Đang tải từ Drive</span>
+{% elif v.file_status == 'pending' %}<span class="badge">Đang tải file từ Drive</span>
 {% elif v.caption_status == 'pending' %}<span class="badge">Chờ AI viết</span>
 {% else %}
   {% with posts=v.posts.all %}

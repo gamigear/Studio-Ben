@@ -11,7 +11,7 @@ urlpatterns = [
     path("dang-xuat/", auth_views.LogoutView.as_view(), name="logout"),
     # Nhân viên
     path("viec-cua-toi/", posts.my_tasks, name="my_tasks"),
-    path("bai/<int:pk>/video/", posts.post_video, name="post_video"),
+    path("bai/<int:pk>/tep/<int:media_pk>/", posts.post_media, name="post_media"),
     path("bai/<int:pk>/da-dang/", posts.mark_posted, name="mark_posted"),
     path("bai/<int:pk>/bo-qua/", posts.skip_post, name="skip_post"),
     path("bai/<int:pk>/hoan-tac/", posts.undo_post, name="undo_post"),
@@ -28,7 +28,7 @@ urlpatterns = [
     path("kho/", library.video_list, name="videos"),
     path("kho/tai-len/", library.video_upload, name="video_upload"),
     path("kho/<int:pk>/", library.video_detail, name="video_detail"),
-    path("kho/<int:pk>/file/", library.video_file, name="video_file"),
+    path("kho/<int:pk>/tep/<int:media_pk>/", library.video_file, name="video_file"),
     path("kho/<int:pk>/viet-lai/", library.video_regenerate, name="video_regenerate"),
     path("kho/<int:pk>/thu-lai/", library.video_retry, name="video_retry"),
     path("kho/<int:pk>/xoa/", library.video_delete, name="video_delete"),

@@ -12,8 +12,9 @@ from ninja.errors import HttpError
 from ninja.files import UploadedFile
 from ninja.security import HttpBearer
 
-from .models import ApiKey, Channel, Post, Video
+from .models import ApiKey, Channel, MediaFile, Post, Video
 from .services import ai
+from .services.content import create_content
 
 
 class ApiKeyAuth(HttpBearer):
@@ -24,7 +25,7 @@ class ApiKeyAuth(HttpBearer):
 api = NinjaAPI(
     title="Lên Lịch API",
     version="1",
-    description="API cho agent: đọc kênh, đẩy video kèm caption, sửa caption, xem lịch đăng.",
+    description="API cho agent: đọc kênh, đẩy video / ảnh / album kèm caption, sửa caption, xem lịch đăng.",
     auth=ApiKeyAuth(),
     urls_namespace="api",
 )
@@ -34,6 +35,7 @@ class ChannelOut(Schema):
     id: int
     name: str
     platform: str
+    default_format: str
     handle: str
     topic: str
     content_instructions: str
@@ -49,9 +51,18 @@ class ChannelPatch(Schema):
     default_hashtags: str | None = None
 
 
+class MediaOut(Schema):
+    id: int
+    kind: str
+    original_name: str
+    size: int | None
+    status: str
+
+
 class VideoOut(Schema):
     id: int
     channel_id: int
+    kind: str
     source: str
     title: str
     notes: str
@@ -59,6 +70,7 @@ class VideoOut(Schema):
     caption_status: str
     file_status: str
     state: str
+    media: list[MediaOut]
     created_at: datetime
 
     @staticmethod
@@ -84,6 +96,7 @@ class PostOut(Schema):
     channel_id: int
     video_id: int
     scheduled_at: datetime
+    post_format: str
     caption: str
     status: str
     assignee: str | None
@@ -128,7 +141,7 @@ def update_channel(request, channel_id: int, payload: ChannelPatch):
 
 @api.get("/videos", response=list[VideoOut], tags=["Video"])
 def list_videos(request, channel_id: int | None = None, limit: int = 50):
-    qs = Video.objects.filter(is_archived=False).prefetch_related("posts").order_by("-created_at")
+    qs = Video.objects.filter(is_archived=False).prefetch_related("posts", "media").order_by("-created_at")
     if channel_id:
         qs = qs.filter(channel_id=channel_id)
     return qs[: max(1, min(limit, 200))]
@@ -138,36 +151,32 @@ def list_videos(request, channel_id: int | None = None, limit: int = 50):
 def create_video(
     request,
     channel_id: int = Form(...),
-    file: UploadedFile = File(...),
+    files: list[UploadedFile] = File(None),
     title: str = Form(""),
     notes: str = Form(""),
     caption: str = Form(""),
 ):
-    """Đẩy một video vào kho của kênh. Có `caption` thì dùng luôn; để trống thì AI viết theo hướng dẫn của kênh."""
+    """Đẩy một nội dung vào kho của kênh: gửi 1 video, 1 ảnh, nhiều ảnh (album), hoặc không file (bài chữ).
+
+    Field file là `files` (lặp lại để gửi nhiều ảnh). Có `caption` thì dùng luôn; để trống thì AI viết theo
+    hướng dẫn của kênh.
+    """
     channel = get_object_or_404(Channel, pk=channel_id)
-    if not (file.content_type or "").startswith("video/"):
-        raise HttpError(400, "File phải là video.")
-    caption = caption.strip()
-    manual = bool(caption) or not channel.auto_caption
-    video = Video(
-        channel=channel,
-        source=Video.Source.API,
-        title=(title or file.name.rsplit(".", 1)[0])[:300],
-        original_name=file.name[:300],
-        notes=notes,
-        size=file.size,
-        file_status=Video.FileStatus.READY,
-        caption=caption or (channel.default_hashtags if manual else ""),
-        caption_status=Video.CaptionStatus.MANUAL if manual else Video.CaptionStatus.PENDING,
-    )
-    video.file.save(file.name, file, save=False)
-    video.save()
+    files = files or []
+    kinds = [MediaFile.kind_from_mime(f.content_type or "") for f in files]
+    if any(k is None for k in kinds):
+        raise HttpError(400, "File phải là video hoặc ảnh.")
+    if len(files) > 1 and MediaFile.Kind.VIDEO in kinds:
+        raise HttpError(400, "Album chỉ gồm ảnh. Gửi video thành từng bài riêng.")
+    if not files and not (caption.strip() or notes.strip()):
+        raise HttpError(400, "Bài chỉ có chữ cần caption hoặc notes.")
+    video = create_content(channel, Video.Source.API, files, title=title, notes=notes, caption=caption)
     return Status(201, video)
 
 
 @api.get("/videos/{video_id}", response=VideoOut, tags=["Video"])
 def get_video(request, video_id: int):
-    return get_object_or_404(Video.objects.prefetch_related("posts"), pk=video_id, is_archived=False)
+    return get_object_or_404(Video.objects.prefetch_related("posts", "media"), pk=video_id, is_archived=False)
 
 
 @api.patch("/videos/{video_id}", response=VideoOut, tags=["Video"])

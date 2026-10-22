@@ -162,3 +162,41 @@ def test_temperature_sent_when_set(channel, make_video, provider, mock_http):
     calls = mock_http(lambda request: chat_response("ok"))
     ai.generate_caption(video)
     assert json_body(calls[0])["temperature"] == 0.7
+
+
+def test_caption_prompt_has_platform_style(channel, make_video, provider):
+    from studio.services import ai
+
+    channel.platform = channel.Platform.INSTAGRAM
+    video = make_video(files=[("1.jpg", "image/jpeg"), ("2.jpg", "image/jpeg")])
+    prompt = ai.build_messages(video, provider)[1]["content"]
+    assert "Instagram" in prompt and "carousel" in prompt and "2200" in prompt
+    channel.platform = channel.Platform.FACEBOOK
+    assert "Fanpage" in ai.build_messages(video, provider)[1]["content"]
+
+
+def test_schedule_uses_feed_for_images(channel, make_video):
+    make_video(files=[("a.jpg", "image/jpeg")])
+    make_video()
+    scheduler.schedule_channel(channel, now=local(2026, 10, 21, 6, 0), days=1)
+    assert [p.post_format for p in Post.objects.order_by("scheduled_at")] == ["feed", "reels"]
+
+
+def test_kiem_tra_reports_missing_pieces(db, capsys):
+    from django.core.management import call_command
+
+    with pytest.raises(SystemExit):
+        call_command("kiem_tra", "--bo-qua-ai")
+    out = capsys.readouterr().out
+    assert "Chưa có tài khoản quản trị" in out and "Worker chưa chạy" in out
+
+
+def test_kiem_tra_passes_when_ready(manager, channel, settings):
+    from django.core.management import call_command
+
+    from studio.services import heartbeat
+
+    manager.is_superuser = True
+    manager.save()
+    heartbeat.beat()
+    call_command("kiem_tra", "--bo-qua-ai")

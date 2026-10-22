@@ -11,8 +11,8 @@
   <tbody>
   {% for c in channels %}
   <tr>
-    <td><div class="row"><span class="avatar">{{ c.name|slice:":1" }}</span><div><a href="{% url 'studio:channel_edit' c.pk %}"><b>{{ c.name }}</b></a><br>
-      <span class="muted small">{{ c.get_platform_display }}{% if c.handle %} · @{{ c.handle|cut:"@" }}{% endif %}</span>
+    <td><div class="row">{% include "studio/_platform.html" with platform=c.platform %}<div><a href="{% url 'studio:channel_edit' c.pk %}"><b>{{ c.name }}</b></a><br>
+      <span class="muted small">{{ c.get_platform_display }} · {{ c.get_default_format_display }}{% if c.handle %} · @{{ c.handle|cut:"@" }}{% endif %}</span>
       {% if not c.is_active %}<span class="badge">Tạm dừng</span>{% endif %}</div></div></td>
     <td>{{ c.assignee|default:"—" }}</td>
     <td>{{ c.device|default:"—" }}</td>

@@ -46,7 +46,8 @@ def test_staff_cannot_open_manager_pages(client, staff):
 
 def test_other_staff_cannot_touch_post(client, other_staff, post):
     client.force_login(other_staff)
-    assert client.get(reverse("studio:post_video", args=[post.pk])).status_code == 403
+    media = post.video.media.get()
+    assert client.get(reverse("studio:post_media", args=[post.pk, media.pk])).status_code == 403
     assert client.post(reverse("studio:mark_posted", args=[post.pk])).status_code == 403
 
 
@@ -72,7 +73,7 @@ def test_skip_post(client, staff, post):
 
 def test_video_supports_range_requests(client, staff, post):
     client.force_login(staff)
-    url = reverse("studio:post_video", args=[post.pk])
+    url = reverse("studio:post_media", args=[post.pk, post.video.media.get().pk])
     resp = client.get(url, HTTP_RANGE="bytes=0-9")
     assert resp.status_code == 206 and resp["Content-Range"] == "bytes 0-9/100"
     assert b"".join(resp.streaming_content) == b"0123456789"
@@ -119,6 +120,7 @@ def test_channel_form_normalises_fields(client, manager, staff):
         {
             "name": "Bếp nhà",
             "platform": "tiktok",
+            "default_format": "reels",
             "post_times": "19:00,7:30",
             "drive_folder_id": "https://drive.google.com/drive/folders/abc123?usp=sharing",
             "assignee": staff.pk,
@@ -137,7 +139,7 @@ def test_upload_video_with_caption_is_manual(client, manager, channel):
     client.force_login(manager)
     resp = client.post(
         reverse("studio:video_upload"),
-        {"channel": channel.pk, "file": SimpleUploadedFile("tu-quay.mp4", b"abc", "video/mp4"), "caption": "Viết tay"},
+        {"channel": channel.pk, "files": SimpleUploadedFile("tu-quay.mp4", b"abc", "video/mp4"), "caption": "Viết tay"},
     )
     assert resp.status_code == 302
     video = Video.objects.get()
@@ -207,7 +209,7 @@ def test_api_upload_video(client, channel, api_auth):
         "/api/v1/videos",
         {
             "channel_id": channel.pk,
-            "file": SimpleUploadedFile("dich-douyin.mp4", b"abc", "video/mp4"),
+            "files": SimpleUploadedFile("dich-douyin.mp4", b"abc", "video/mp4"),
             "notes": "Kịch bản",
         },
         **api_auth,
@@ -222,7 +224,7 @@ def test_api_upload_video(client, channel, api_auth):
 def test_api_rejects_non_video(client, channel, api_auth):
     resp = client.post(
         "/api/v1/videos",
-        {"channel_id": channel.pk, "file": SimpleUploadedFile("a.txt", b"x", "text/plain")},
+        {"channel_id": channel.pk, "files": SimpleUploadedFile("a.txt", b"x", "text/plain")},
         **api_auth,
     )
     assert resp.status_code == 400
@@ -281,3 +283,74 @@ def test_sidebar_counts_pending(client, staff, post):
     assert channels[0].pending_today == 1
     assert resp.context["my_pending_count"]() == 1
     assert client.get(reverse("studio:my_tasks") + f"?kenh={post.channel_id}").context["posts"] == [post]
+
+
+def test_upload_album_and_text_post(client, manager, channel):
+    client.force_login(manager)
+    resp = client.post(
+        reverse("studio:video_upload"),
+        {
+            "channel": channel.pk,
+            "files": [SimpleUploadedFile("1.jpg", b"a", "image/jpeg"), SimpleUploadedFile("2.png", b"b", "image/png")],
+            "title": "Bộ ảnh",
+        },
+    )
+    assert resp.status_code == 302, resp.context and resp.context["form"].errors
+    album = Video.objects.get(title="Bộ ảnh")
+    assert album.kind == Video.Kind.ALBUM and album.media.count() == 2 and album.file_status == Video.FileStatus.READY
+    client.post(reverse("studio:video_upload"), {"channel": channel.pk, "caption": "Chúc cả nhà cuối tuần vui!"})
+    text = Video.objects.get(kind=Video.Kind.TEXT)
+    assert text.caption_status == Video.CaptionStatus.MANUAL and text.is_ready
+    # Không file, không chữ: báo lỗi.
+    resp = client.post(reverse("studio:video_upload"), {"channel": channel.pk})
+    assert resp.status_code == 200 and resp.context["form"].errors
+
+
+def test_upload_rejects_video_in_album(client, manager, channel):
+    client.force_login(manager)
+    resp = client.post(
+        reverse("studio:video_upload"),
+        {
+            "channel": channel.pk,
+            "files": [SimpleUploadedFile("1.jpg", b"a", "image/jpeg"), SimpleUploadedFile("2.mp4", b"b", "video/mp4")],
+        },
+    )
+    assert resp.status_code == 200 and "files" in resp.context["form"].errors
+
+
+def test_api_upload_album(client, channel, api_auth):
+    resp = client.post(
+        "/api/v1/videos",
+        {
+            "channel_id": channel.pk,
+            "files": [SimpleUploadedFile("1.jpg", b"a", "image/jpeg"), SimpleUploadedFile("2.jpg", b"b", "image/jpeg")],
+            "caption": "Album",
+        },
+        **api_auth,
+    )
+    assert resp.status_code == 201, resp.content
+    body = resp.json()
+    assert body["kind"] == "album" and [m["original_name"] for m in body["media"]] == ["1.jpg", "2.jpg"]
+    text = client.post("/api/v1/videos", {"channel_id": channel.pk, "caption": "Chỉ chữ"}, **api_auth)
+    assert text.status_code == 201 and text.json()["kind"] == "text"
+
+
+def test_meta_task_card(client, staff, make_video):
+    from studio.models import Channel
+
+    fb = Channel.objects.create(
+        name="Fanpage Bếp", platform=Channel.Platform.FACEBOOK, assignee=staff, default_format="reels"
+    )
+    album = make_video(channel=fb, files=[("1.jpg", "image/jpeg"), ("2.jpg", "image/jpeg")])
+    post = Post.objects.create(
+        channel=fb,
+        video=album,
+        scheduled_at=timezone.now() + timezone.timedelta(minutes=30),
+        post_format=album.format_for(fb.default_format),
+        assignee=staff,
+    )
+    assert post.post_format == "feed"
+    client.force_login(staff)
+    html = client.get(reverse("studio:my_tasks")).content.decode()
+    assert "Chia sẻ sang Facebook" in html and "Meta Business Suite" in html and "Album 2 ảnh" in html
+    assert html.count("data-share-file") == 2

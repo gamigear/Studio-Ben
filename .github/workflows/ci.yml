@@ -26,6 +26,7 @@ jobs:
       - run: pip install -r requirements.txt
       - run: ruff check .
       - run: ruff format --check .
+      - run: bash -n scripts/cai-dat.sh
       - run: DEBUG=1 python manage.py makemigrations --check --dry-run
       # Chạy test trên PostgreSQL (giống môi trường thật) và SQLite.
       - run: pytest

@@ -4,10 +4,11 @@ from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from ..forms import ChannelForm, VideoEditForm, VideoUploadForm
-from ..models import Channel, Post, Video
+from ..forms import ChannelForm, ContentUploadForm, VideoEditForm
+from ..models import Channel, MediaFile, Post, Video
 from ..services import ai, drive
-from .common import manager_required, serve_video
+from ..services.content import create_content, remove_files
+from .common import manager_required, serve_media
 
 # --- Kênh -------------------------------------------------------------------
 
@@ -120,21 +121,18 @@ def video_list(request):
 
 @manager_required
 def video_upload(request):
-    form = VideoUploadForm(request.POST or None, request.FILES or None, initial={"channel": request.GET.get("kenh")})
+    form = ContentUploadForm(request.POST or None, request.FILES or None, initial={"channel": request.GET.get("kenh")})
     if request.method == "POST" and form.is_valid():
-        video = form.save(commit=False)
-        video.source = Video.Source.UPLOAD
-        upload = form.cleaned_data["file"]
-        video.title = video.title or upload.name.rsplit(".", 1)[0]
-        video.original_name = upload.name[:300]
-        video.size = upload.size
-        video.file_status = Video.FileStatus.READY
-        caption = form.cleaned_data["caption"].strip()
-        if caption or not video.channel.auto_caption:
-            video.caption = caption or video.channel.default_hashtags
-            video.caption_status = Video.CaptionStatus.MANUAL
-        video.save()
-        messages.success(request, f"Đã thêm video “{video.title}”.")
+        data = form.cleaned_data
+        video = create_content(
+            data["channel"],
+            Video.Source.UPLOAD,
+            data["files"],
+            title=data["title"],
+            notes=data["notes"],
+            caption=data["caption"],
+        )
+        messages.success(request, f"Đã thêm {video.get_kind_display().lower()} “{video.title}”.")
         return redirect("studio:video_detail", pk=video.pk)
     return render(request, "studio/video_upload.html", {"form": form})
 
@@ -148,18 +146,24 @@ def video_detail(request, pk):
         video = form.save()
         if caption_changed:
             video.apply_caption(video.caption, Video.CaptionStatus.MANUAL)
-        messages.success(request, "Đã lưu video.")
+        messages.success(request, "Đã lưu nội dung.")
         return redirect("studio:video_detail", pk=video.pk)
     return render(
         request,
         "studio/video_detail.html",
-        {"video": video, "form": form, "posts": video.posts.select_related("assignee")},
+        {
+            "video": video,
+            "form": form,
+            "media": video.media.all(),
+            "posts": video.posts.select_related("assignee", "channel"),
+        },
     )
 
 
 @manager_required
-def video_file(request, pk):
-    return serve_video(request, get_object_or_404(Video, pk=pk), as_attachment=request.GET.get("tai") == "1")
+def video_file(request, pk, media_pk):
+    media = get_object_or_404(MediaFile, pk=media_pk, content_id=pk)
+    return serve_media(request, media, as_attachment=request.GET.get("tai") == "1")
 
 
 @manager_required
@@ -183,6 +187,7 @@ def video_retry(request, pk):
     video = get_object_or_404(Video, pk=pk)
     fields = []
     if video.file_status == Video.FileStatus.FAILED:
+        video.media.filter(status=Video.FileStatus.FAILED).update(status=Video.FileStatus.PENDING, error="")
         video.file_status, video.file_error = Video.FileStatus.PENDING, ""
         fields += ["file_status", "file_error"]
     if video.caption_status == Video.CaptionStatus.FAILED:
@@ -190,7 +195,7 @@ def video_retry(request, pk):
         fields += ["caption_status", "caption_attempts", "caption_error"]
     if fields:
         video.save(update_fields=fields)
-    messages.info(request, "Worker sẽ xử lý lại video này trong vài phút.")
+    messages.info(request, "Worker sẽ xử lý lại nội dung này trong vài phút.")
     return redirect("studio:video_detail", pk=video.pk)
 
 
@@ -199,16 +204,15 @@ def video_retry(request, pk):
 def video_delete(request, pk):
     video = get_object_or_404(Video, pk=pk)
     if video.posts.filter(status=Post.Status.POSTED).exists():
-        messages.error(request, "Video đã đăng, không xóa được (để giữ lịch sử).")
+        messages.error(request, "Nội dung đã đăng, không xóa được (để giữ lịch sử).")
         return redirect("studio:video_detail", pk=video.pk)
-    if video.file:
-        video.file.delete(save=False)
+    remove_files(video)
     title = video.title
     if video.source == Video.Source.DRIVE:
         video.posts.filter(status=Post.Status.PENDING).delete()
         video.file_status, video.is_archived = Video.FileStatus.REMOVED, True
-        video.save(update_fields=["file", "file_status", "is_archived"])
+        video.save(update_fields=["file_status", "is_archived"])
     else:
         video.delete()
-    messages.info(request, f"Đã xóa video “{title}”.")
+    messages.info(request, f"Đã xóa “{title}”.")
     return redirect("studio:videos")

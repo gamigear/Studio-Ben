@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from .models import AIProvider, ApiKey, Channel, Post, User, Video
+from .models import AIProvider, ApiKey, Channel, MediaFile, Post, User, Video
 
 admin.site.site_header = "Lên Lịch – Quản trị"
 admin.site.site_title = "Lên Lịch"
@@ -17,21 +17,28 @@ class UserAdmin(BaseUserAdmin):
 
 @admin.register(Channel)
 class ChannelAdmin(admin.ModelAdmin):
-    list_display = ("name", "platform", "handle", "assignee", "device", "post_times", "is_active")
+    list_display = ("name", "platform", "default_format", "handle", "assignee", "device", "post_times", "is_active")
     list_filter = ("platform", "is_active", "assignee")
     search_fields = ("name", "handle")
 
 
+class MediaFileInline(admin.TabularInline):
+    model = MediaFile
+    extra = 0
+    fields = ("position", "kind", "original_name", "file", "status", "drive_file_id")
+
+
 @admin.register(Video)
 class VideoAdmin(admin.ModelAdmin):
-    list_display = ("title", "channel", "source", "file_status", "caption_status", "created_at")
-    list_filter = ("channel", "source", "file_status", "caption_status")
+    list_display = ("title", "channel", "kind", "source", "file_status", "caption_status", "created_at")
+    list_filter = ("channel", "kind", "source", "file_status", "caption_status")
+    inlines = [MediaFileInline]
     search_fields = ("title", "caption")
 
 
 @admin.register(Post)
 class PostAdmin(admin.ModelAdmin):
-    list_display = ("channel", "scheduled_at", "assignee", "status", "posted_at")
+    list_display = ("channel", "scheduled_at", "post_format", "assignee", "status", "posted_at")
     list_filter = ("status", "channel", "assignee")
     date_hierarchy = "scheduled_at"
 

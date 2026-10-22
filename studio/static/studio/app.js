@@ -53,44 +53,56 @@
     }
   });
 
-  // Bước 1: tải video vào bộ nhớ. Bước 2 (bấm lần nữa): mở bảng chia sẻ.
+  // Bước 1: tải các file (video / ảnh) vào bộ nhớ. Bước 2 (bấm lần nữa): mở bảng chia sẻ của máy.
   // iPhone chỉ cho mở bảng chia sẻ ngay sau một lần bấm, nên không thể vừa tải vừa chia sẻ.
+  // Bài chỉ có chữ thì chia sẻ thẳng nội dung chữ.
   function handleShare(btn) {
     var card = btn.closest("[data-task]");
-    if (!navigator.canShare) {
-      alert("Trình duyệt này không hỗ trợ chia sẻ file. Dùng nút “Tải video” rồi mở TikTok.");
+    var links = Array.prototype.slice.call(card.querySelectorAll("[data-share-file]"));
+    var caption = captionOf(card);
+    if (!navigator.share) {
+      alert("Trình duyệt này không hỗ trợ chia sẻ. Dùng nút “Tải” + “Copy caption” rồi mở app.");
       return;
     }
-    if (btn._file) {
-      copyText(captionOf(card)).catch(function () {});
-      navigator
-        .share({ files: [btn._file] })
-        .catch(function (err) {
-          if (err && err.name !== "AbortError") alert("Không chia sẻ được: " + err.message);
-        });
+    if (!links.length) {
+      copyText(caption).catch(function () {});
+      navigator.share({ text: caption }).catch(shareError);
+      return;
+    }
+    if (btn._files) {
+      copyText(caption).catch(function () {});
+      navigator.share({ files: btn._files }).catch(shareError);
       return;
     }
     btn.disabled = true;
-    btn.textContent = "Đang chuẩn bị video…";
-    fetch(btn.dataset.share, { credentials: "same-origin" })
-      .then(function (resp) {
-        if (!resp.ok) throw new Error("Lỗi " + resp.status);
-        return resp.blob();
+    btn.textContent = links.length > 1 ? "Đang chuẩn bị " + links.length + " file…" : "Đang chuẩn bị…";
+    Promise.all(
+      links.map(function (a) {
+        return fetch(a.href, { credentials: "same-origin" }).then(function (resp) {
+          if (!resp.ok) throw new Error("Lỗi " + resp.status);
+          return resp.blob().then(function (blob) {
+            return new File([blob], a.dataset.name || "file", { type: a.dataset.type || blob.type });
+          });
+        });
       })
-      .then(function (blob) {
-        var name = btn.dataset.filename || "video.mp4";
-        var file = new File([blob], name, { type: blob.type || "video/mp4" });
-        if (!navigator.canShare({ files: [file] })) throw new Error("Máy không cho chia sẻ loại file này.");
-        btn._file = file;
+    )
+      .then(function (files) {
+        if (!navigator.canShare || !navigator.canShare({ files: files })) {
+          throw new Error("Máy không cho chia sẻ loại file này.");
+        }
+        btn._files = files;
         btn.disabled = false;
-        btn.classList.add("primary");
-        btn.textContent = "Mở TikTok (copy caption + chia sẻ)";
+        btn.textContent = "Mở app (copy caption + chia sẻ)";
       })
       .catch(function (err) {
         btn.disabled = false;
-        btn.textContent = "Chia sẻ sang TikTok";
-        alert("Không chuẩn bị được video: " + err.message);
+        btn.textContent = btn.dataset.label;
+        alert("Không chuẩn bị được file: " + err.message);
       });
+  }
+
+  function shareError(err) {
+    if (err && err.name !== "AbortError") alert("Không chia sẻ được: " + err.message);
   }
 
   // Thanh menu trái: mở/đóng trên điện thoại, thu gọn trên máy tính.

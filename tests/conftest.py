@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from studio.models import AIProvider, Channel, User, Video
+from studio.models import AIProvider, Channel, MediaFile, User, Video
 from studio.services import http
 
 
@@ -65,11 +65,12 @@ def channel(db, staff):
 
 @pytest.fixture
 def make_video(channel, tmp_path):
+    """Tạo nội dung sẵn sàng. `files=[("a.jpg", "image/jpeg"), ...]` để tạo ảnh / album; mặc định 1 video."""
     from django.core.files.base import ContentFile
 
     counter = {"n": 0}
 
-    def make(**kwargs):
+    def make(files=None, **kwargs):
         counter["n"] += 1
         defaults = {
             "channel": channel,
@@ -79,10 +80,23 @@ def make_video(channel, tmp_path):
             "file_status": Video.FileStatus.READY,
         }
         defaults.update(kwargs)
-        video = Video(**defaults)
-        if video.file_status == Video.FileStatus.READY and "file" not in kwargs:
-            video.file.save(f"{video.title}.mp4", ContentFile(b"0123456789" * 10), save=False)
-        video.save()
+        if files is None:
+            files = [(f"{defaults['title']}.mp4", "video/mp4")] if defaults.get("kind") != Video.Kind.TEXT else []
+        defaults.setdefault("kind", Video.kind_for([MediaFile.kind_from_mime(mime) for _, mime in files]))
+        video = Video.objects.create(**defaults)
+        for i, (name, mime) in enumerate(files):
+            media = MediaFile(
+                content=video,
+                position=i,
+                kind=MediaFile.kind_from_mime(mime),
+                original_name=name,
+                mime_type=mime,
+                status=Video.FileStatus.READY if video.file_status == Video.FileStatus.READY else video.file_status,
+            )
+            if media.status == Video.FileStatus.READY:
+                media.file.save(name, ContentFile(b"0123456789" * 10), save=False)
+                media.size = 100
+            media.save()
         return video
 
     return make

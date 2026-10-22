@@ -3,27 +3,45 @@
   <div class="task-head">
     <span class="task-time">{{ p.scheduled_at|localtime|time:"H:i" }}</span>
     {% if not is_today_list %}<span class="muted small">{{ p.scheduled_at|localtime|date:"d/m" }}</span>{% endif %}
-    <span class="avatar">{{ p.channel.name|slice:":1" }}</span>
+    {% include "studio/_platform.html" with platform=p.channel.platform %}
     <strong>{{ p.channel.name }}</strong>
     {% if p.channel.handle %}<span class="muted">@{{ p.channel.handle|cut:"@" }}</span>{% endif %}
     {% if p.channel.device %}<span class="badge">📱 {{ p.channel.device }}</span>{% endif %}
+    <span class="badge brand">{{ p.get_post_format_display }}</span>
     <span class="badge {{ p.status_class }}">{{ p.status_label }}{% if p.status == 'posted' and p.posted_at %} {{ p.posted_at|localtime|time:"H:i" }}{% endif %}</span>
   </div>
 
   {% if p.status == 'pending' %}
-    {% if p.video.file %}
-    <video controls playsinline preload="none" src="{% url 'studio:post_video' p.pk %}"></video>
-    {% else %}
-    <p><span class="badge bad">Video chưa có trên máy chủ</span></p>
+    {% with media=p.video.media.all %}
+    {% if media %}
+    <div class="gallery{% if media|length > 1 %} multi{% endif %}">
+      {% for m in media %}
+        {% if m.file %}
+          {% url 'studio:post_media' p.pk m.pk as murl %}
+          {% if m.is_video %}<video controls playsinline preload="none" src="{{ murl }}"></video>
+          {% else %}<img src="{{ murl }}" alt="{{ m.original_name }}" loading="lazy">{% endif %}
+          <a hidden data-share-file href="{{ murl }}" data-name="{{ m.original_name|default:'file' }}" data-type="{{ m.mime_type }}"></a>
+        {% else %}<div class="empty small">{{ m.original_name }}: chưa có trên máy chủ</div>{% endif %}
+      {% endfor %}
+    </div>
+    {% if media|length > 1 %}<p class="muted small" style="margin:6px 0 0">Album {{ media|length }} ảnh — lướt ngang để xem.</p>{% endif %}
     {% endif %}
     <textarea rows="5" readonly data-caption>{{ p.caption }}</textarea>
+    <p class="muted small" style="margin:0 0 8px">{% if p.channel.platform == 'facebook' %}Chọn <b>Facebook</b> (đăng với tư cách Trang) hoặc <b>Meta Business Suite</b> → dán caption → đăng.
+      {% elif p.channel.platform == 'instagram' %}Chọn <b>Instagram</b> → chọn đúng dạng <b>{{ p.get_post_format_display }}</b> → dán caption → đăng.
+      {% elif p.channel.platform == 'youtube' %}Chọn <b>YouTube</b> → Shorts → dán tiêu đề / mô tả → đăng.
+      {% else %}Chọn <b>TikTok</b> → chọn nhạc → dán caption → đăng.{% endif %}</p>
     <div class="actions">
-      {% if p.video.file %}
-      <button type="button" class="btn primary wide" data-share="{% url 'studio:post_video' p.pk %}" data-filename="{{ p.video.original_name|default:'video.mp4' }}">Chia sẻ sang TikTok</button>
-      {% endif %}
+      <button type="button" class="btn primary wide" data-share data-label="Chia sẻ sang {{ p.channel.get_platform_display }}">Chia sẻ sang {{ p.channel.get_platform_display }}</button>
       <button type="button" class="btn" data-copy-caption>{% include "studio/_icon.html" with name="copy" %}Copy caption</button>
-      <a class="btn" href="{% url 'studio:post_video' p.pk %}?tai=1">{% include "studio/_icon.html" with name="download" %}Tải video</a>
+      {% if media %}
+        {% if media|length == 1 %}<a class="btn" href="{% url 'studio:post_media' p.pk media.0.pk %}?tai=1">{% include "studio/_icon.html" with name="download" %}Tải {{ media.0.get_kind_display|lower }}</a>
+        {% else %}<details class="btn" style="display:block"><summary>{% include "studio/_icon.html" with name="download" %}Tải từng ảnh</summary>
+          {% for m in media %}<a class="small" style="display:block" href="{% url 'studio:post_media' p.pk m.pk %}?tai=1">{{ forloop.counter }}. {{ m.original_name }}</a>{% endfor %}</details>{% endif %}
+      {% endif %}
+      {% if p.channel.is_meta %}<a class="btn wide" href="https://business.facebook.com/latest/home" target="_blank" rel="noopener">Mở Meta Business Suite</a>{% endif %}
     </div>
+    {% endwith %}
     <form method="post" action="{% url 'studio:mark_posted' p.pk %}" class="posted-form">
       {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}#bai-{{ p.pk }}">
       <input type="url" name="post_url" placeholder="Link bài đã đăng (không bắt buộc)">

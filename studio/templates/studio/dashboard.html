@@ -18,12 +18,19 @@
   <div class="stat"><span class="k">Đang trễ</span><b{% if late_posts %} style="color:var(--st-late)"{% endif %}>{{ late_posts|length }}</b></div>
 </div>
 
+{% if not problems.worker_ok %}
+<div class="card soft" style="margin-top:14px;border-left:4px solid var(--st-late)">
+  <strong>Worker không chạy</strong> — Drive không được quét, AI không viết caption, lịch không tự xếp.
+  <span class="muted">{% if problems.worker_age is None %}Worker chưa chạy lần nào.{% else %}Lần chạy cuối cách đây {{ problems.worker_age }} giây.{% endif %}
+  Kiểm tra: <code>docker compose logs worker</code></span>
+</div>
+{% endif %}
 {% if problems.caption_failed or problems.file_failed or problems.drive_errors %}
 <div class="card soft" style="margin-top:14px;border-left:4px solid var(--st-late)">
   <strong>Cần xử lý</strong>
   <ul style="margin:6px 0 0;padding-left:18px">
-    {% if problems.caption_failed %}<li><a href="{% url 'studio:videos' %}?trang-thai=loi">{{ problems.caption_failed }} video AI chưa viết được caption</a></li>{% endif %}
-    {% if problems.file_failed %}<li><a href="{% url 'studio:videos' %}?trang-thai=loi">{{ problems.file_failed }} video tải từ Drive bị lỗi</a></li>{% endif %}
+    {% if problems.caption_failed %}<li><a href="{% url 'studio:videos' %}?trang-thai=loi">{{ problems.caption_failed }} nội dung AI chưa viết được caption</a></li>{% endif %}
+    {% if problems.file_failed %}<li><a href="{% url 'studio:videos' %}?trang-thai=loi">{{ problems.file_failed }} nội dung tải file từ Drive bị lỗi</a></li>{% endif %}
     {% for c in problems.drive_errors %}<li>Kênh <a href="{% url 'studio:channel_edit' c.pk %}">{{ c.name }}</a>: {{ c.drive_error }}</li>{% endfor %}
   </ul>
 </div>
@@ -51,11 +58,11 @@
   <tbody>
   {% for c in channels %}
   <tr>
-    <td><div class="row"><span class="avatar">{{ c.name|slice:":1" }}</span><a href="{% url 'studio:schedule' %}?kenh={{ c.pk }}">{{ c.name }}</a><span class="muted small">{{ c.get_platform_display }}</span></div></td>
+    <td><div class="row">{% include "studio/_platform.html" with platform=c.platform %}<a href="{% url 'studio:schedule' %}?kenh={{ c.pk }}">{{ c.name }}</a></div></td>
     <td>{{ c.assignee|default:"—" }}</td>
     <td>{{ c.today_done }}/{{ c.today_total }}</td>
     <td>
-      <a href="{% url 'studio:videos' %}?kenh={{ c.pk }}&trang-thai=san-sang">{{ c.ready }} video</a>
+      <a href="{% url 'studio:videos' %}?kenh={{ c.pk }}&trang-thai=san-sang">{{ c.ready }} bài</a>
       {% if c.days_left is not None %}
         {% if c.days_left < 1 %}<span class="badge st-late">còn {{ c.days_left }} ngày</span>
         {% elif c.days_left < 3 %}<span class="badge st-due">còn {{ c.days_left }} ngày</span>

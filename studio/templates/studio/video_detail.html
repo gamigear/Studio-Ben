@@ -2,16 +2,21 @@
 {% load tz %}
 {% block title %}{{ video.title }}{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1>{{ video.title }}</h1><div class="sub muted">{{ video.channel.name }} · {{ video.get_source_display }} {% include "studio/_video_state.html" with v=video %}</div></div></div>
+<div class="page-head"><div><h1>{{ video.title }}</h1><div class="sub muted row">{% include "studio/_platform.html" with platform=video.channel.platform %}{{ video.channel.name }} · {{ video.get_kind_display }} · {{ video.get_source_display }} {% include "studio/_video_state.html" with v=video %}</div></div></div>
 {% if video.file_error %}<div class="messages"><li class="error">Tải file: {{ video.file_error }}</li></div>{% endif %}
 {% if video.caption_error %}<div class="messages"><li class="error">AI: {{ video.caption_error }}</li></div>{% endif %}
 
 <div class="split">
   <div class="side">
-    {% if video.file %}
-      <video class="video-thumb" controls playsinline preload="metadata" src="{% url 'studio:video_file' video.pk %}"></video>
-      <p><a class="btn small" href="{% url 'studio:video_file' video.pk %}?tai=1">{% include "studio/_icon.html" with name="download" %}Tải video</a></p>
-    {% else %}<div class="empty">Chưa có file trên máy chủ.</div>{% endif %}
+    {% if not media %}<div class="empty">Bài chỉ có chữ.</div>{% endif %}
+    {% for m in media %}
+      {% if m.file %}
+        {% url 'studio:video_file' video.pk m.pk as murl %}
+        {% if m.is_video %}<video class="video-thumb" controls playsinline preload="metadata" src="{{ murl }}"></video>
+        {% else %}<img class="video-thumb" src="{{ murl }}" alt="{{ m.original_name }}" style="object-fit:contain">{% endif %}
+        <p class="row small"><span class="muted">{{ forloop.counter }}. {{ m.original_name }}</span><a class="btn small" href="{{ murl }}?tai=1">{% include "studio/_icon.html" with name="download" %}Tải</a></p>
+      {% else %}<div class="empty small">{{ m.original_name }}: {{ m.get_status_display|lower }}{% if m.error %} — {{ m.error }}{% endif %}</div>{% endif %}
+    {% endfor %}
   </div>
   <div class="main">
     <form method="post">{% csrf_token %}{% include "studio/_form.html" %}
@@ -23,13 +28,13 @@
       {% if video.file_status == 'failed' or video.caption_status == 'failed' %}
       <form method="post" action="{% url 'studio:video_retry' video.pk %}" class="inline">{% csrf_token %}<button class="btn">Thử lại</button></form>
       {% endif %}
-      <form method="post" action="{% url 'studio:video_delete' video.pk %}" class="inline" data-confirm="Xóa video này? Bài đang chờ đăng của video cũng bị gỡ.">{% csrf_token %}<button class="btn danger">Xóa</button></form>
+      <form method="post" action="{% url 'studio:video_delete' video.pk %}" class="inline" data-confirm="Xóa nội dung này? Bài đang chờ đăng của nó cũng bị gỡ.">{% csrf_token %}<button class="btn danger">Xóa</button></form>
     </div>
   </div>
 </div>
 
 {% if posts %}
-<h2>Lịch đăng của video</h2>
+<h2>Lịch đăng</h2>
 <div class="table-wrap"><table>
   <thead><tr><th>Giờ</th><th>Nhân viên</th><th>Trạng thái</th><th></th></tr></thead><tbody>
   {% for p in posts %}

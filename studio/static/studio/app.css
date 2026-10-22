@@ -342,3 +342,22 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
   .hide-sm { display: none; }
   h1 { font-size: 1.25rem; }
 }
+
+/* ---------- Nền tảng & thư viện ảnh ---------- */
+.pf {
+  display: inline-grid; place-items: center; flex: none;
+  width: 22px; height: 22px; border-radius: 6px;
+  font-size: 0.7rem; font-weight: 800; line-height: 1; color: #fff; background: #111;
+}
+.pf-facebook { background: #1877f2; font-family: Georgia, serif; font-size: 0.85rem; }
+.pf-instagram { background: linear-gradient(45deg, #f9a825, #e1306c 55%, #833ab4); font-size: 0.58rem; }
+.pf-youtube { background: #ff0000; font-size: 0.6rem; }
+.pf-tiktok { background: #111; }
+.chip .pf { width: 16px; height: 16px; border-radius: 4px; font-size: 0.55rem; }
+.gallery { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory; border-radius: var(--radius-sm); }
+.gallery > video, .gallery > img { flex: 0 0 100%; width: 100%; max-height: 60vh; object-fit: contain; background: #000; border-radius: var(--radius-sm); scroll-snap-align: start; }
+.gallery.multi > img { flex-basis: 85%; }
+.task details.btn { text-align: left; }
+.task details.btn summary { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+.thumbs img, .thumbs video { width: 100%; aspect-ratio: 9 / 16; object-fit: cover; background: #000; border-radius: var(--radius-sm); display: block; }

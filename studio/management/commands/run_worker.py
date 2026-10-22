@@ -1,4 +1,4 @@
-"""Worker nền: quét Drive, tải video, AI viết caption, xếp lịch, dọn file cũ."""
+"""Worker nền: quét Drive, tải file, AI viết caption, xếp lịch, dọn file cũ."""
 
 import logging
 import time
@@ -7,7 +7,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 
-from studio.services import ai, drive, scheduler
+from studio.services import ai, drive, heartbeat, scheduler
 
 logger = logging.getLogger("studio.worker")
 
@@ -30,12 +30,16 @@ class Command(BaseCommand):
             if options["once"] or now - last_sync >= settings.DRIVE_SYNC_INTERVAL:
                 self._step("Quét Drive", drive.sync_all)
                 last_sync = now
-            self._step("Tải video", drive.download_pending)
+            self._step("Tải file", drive.download_pending)
             self._step("Viết caption", ai.process_pending_captions)
             self._step("Xếp lịch", scheduler.schedule_all)
             if options["once"] or now - last_cleanup >= CLEANUP_INTERVAL:
                 self._step("Dọn file cũ", drive.cleanup_media)
                 last_cleanup = now
+            try:
+                heartbeat.beat()
+            except OSError:
+                logger.exception("Không ghi được nhịp tim worker")
             if options["once"]:
                 return
             time.sleep(LOOP_SECONDS)
